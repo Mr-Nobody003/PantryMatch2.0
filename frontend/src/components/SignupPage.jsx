@@ -1,30 +1,40 @@
 import React, { useState } from 'react';
 import Header from './Header';
 
-function LoginPage({ onLogin, onSwitchToSignup }) {
+function SignupPage({ onSignup, onSwitchToLogin }) {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter both email and password.');
+    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
       return;
     }
     try {
       setSubmitting(true);
       setError('');
-      if (onLogin) {
-        await onLogin({ email, password });
+      if (onSignup) {
+        await onSignup({ name, email, password });
       }
     } catch (err) {
-      const message = err?.message || 'Could not sign you in. Please try again.';
-      // Surface clearer copy for common auth issues
-      if (message.toLowerCase().includes('invalid')) {
-        setError('No account found for this email or the password is incorrect.');
+      const message = err?.message || 'Could not create your account. Please try again.';
+      if (message.toLowerCase().includes('already exists')) {
+        setError('An account with this email already exists. Try signing in instead.');
       } else {
         setError(message);
       }
@@ -41,36 +51,20 @@ function LoginPage({ onLogin, onSwitchToSignup }) {
         <div className="content-wrapper">
           <div className="results-header" style={{ borderBottom: 'none', marginBottom: '24px' }}>
             <h2 className="results-title">
-              <span className="results-label">Welcome back to</span>
+              <span className="results-label">Join</span>
               <span className="results-count">Pantry Match</span>
             </h2>
           </div>
 
           <form onSubmit={handleSubmit} className="search-area">
             <div className="search-box" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <div className="search-icon-wrapper">
-                <svg
-                  className="search-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M15.5 15.5L20 20"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <circle
-                    cx="11"
-                    cy="11"
-                    r="5"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+              <input
+                type="text"
+                className="search-field"
+                placeholder="Full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
 
               <input
                 type="email"
@@ -84,7 +78,7 @@ function LoginPage({ onLogin, onSwitchToSignup }) {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   className="search-field"
-                  placeholder="Password"
+                  placeholder="Password (min 6 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   style={{ paddingRight: 56 }}
@@ -99,8 +93,27 @@ function LoginPage({ onLogin, onSwitchToSignup }) {
                 </button>
               </div>
 
+              <div className="input-wrap">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  className="search-field"
+                  placeholder="Confirm password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{ paddingRight: 56 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="input-action"
+                >
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+
               <button type="submit" className="search-btn" disabled={submitting}>
-                {submitting ? <span className="btn-loader-small" /> : 'Sign in'}
+                {submitting ? <span className="btn-loader-small" /> : 'Create account'}
               </button>
             </div>
 
@@ -137,13 +150,13 @@ function LoginPage({ onLogin, onSwitchToSignup }) {
           </form>
 
           <div className="auth-footer">
-            Don't have an account?{' '}
+            Already have an account?{' '}
             <button
               type="button"
-              onClick={onSwitchToSignup}
+              onClick={onSwitchToLogin}
               className="link-btn"
             >
-              Create one
+              Sign in
             </button>
           </div>
         </div>
@@ -152,5 +165,5 @@ function LoginPage({ onLogin, onSwitchToSignup }) {
   );
 }
 
-export default LoginPage;
+export default SignupPage;
 

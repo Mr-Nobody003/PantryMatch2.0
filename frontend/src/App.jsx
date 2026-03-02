@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import './App.css';
 import Header from './components/Header';
 import LoginPage from './components/LoginPage';
+import SignupPage from './components/SignupPage';
+import ProfilePage from './components/ProfilePage';
+import Toast from './components/Toast';
 import SearchBox from './components/SearchBox';
 import ImageUploadSection from './components/ImageUploadSection';
 import RecipeList from './components/RecipeList';
@@ -11,7 +14,14 @@ import { useIngredientDetection } from './hooks/useIngredientDetection';
 import { api } from './services/api';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [authToken, setAuthToken] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pm_token') || null;
+    }
+    return null;
+  });
+  const [currentView, setCurrentView] = useState('login'); // 'login' | 'signup' | 'main' | 'profile'
 
   // Recipe search state
   const [ingredients, setIngredients] = useState('');
@@ -26,6 +36,25 @@ function App() {
   const [adaptLoading, setAdaptLoading] = useState(false);
   const [videos, setVideos] = useState([]);
   const [videosLoading, setVideosLoading] = useState(false);
+  const [savingRecipe, setSavingRecipe] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [savedCount, setSavedCount] = useState(0);
+  const [savedTitleSet, setSavedTitleSet] = useState(() => new Set());
+
+  const normalizeTitle = (t) => (t || '').trim().toLowerCase();
+
+  const refreshSavedMeta = async () => {
+    if (!authToken || !authUser) return;
+    try {
+      const recipes = await api.getSavedRecipes(authToken);
+      const titles = recipes.map((r) => normalizeTitle(r?.title)).filter(Boolean);
+      const set = new Set(titles);
+      setSavedTitleSet(set);
+      setSavedCount(set.size);
+    } catch {
+      // ignore
+    }
+  };
 
   // Image upload hooks
   const {
@@ -52,13 +81,14 @@ function App() {
   } = useIngredientDetection();
 
   // Search recipes
-  const searchRecipes = async () => {
-    if (!ingredients.trim()) return;
+  const searchRecipes = async (queryOverride) => {
+    const q = (queryOverride ?? ingredients).trim();
+    if (!q) return;
     
     setLoading(true);
     setError('');
     try {
-      const data = await api.searchRecipes(ingredients);
+      const data = await api.searchRecipes(q, authToken);
       setResults(data);
       
       // Check if no results or all results have very low similarity scores
@@ -144,6 +174,34 @@ function App() {
     setVideos([]);
   };
 
+  const handleSaveRecipe = async (recipe) => {
+    if (!authToken) return;
+    try {
+      setSavingRecipe(true);
+      const resp = await api.saveRecipe(authToken, {
+        title: recipe.title,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        time: recipe.time,
+      });
+      if (resp?.duplicate) {
+        setToast({ type: 'success', title: 'Already saved', message: 'Updated in your favorites.' });
+      } else {
+        setToast({ type: 'success', title: 'Saved', message: 'Added to your favorites.' });
+      }
+      refreshSavedMeta();
+    } catch (err) {
+      console.error('Failed to save recipe', err);
+      setToast({
+        type: 'error',
+        title: 'Couldn’t save',
+        message: err?.message || 'Please try again.',
+      });
+    } finally {
+      setSavingRecipe(false);
+    }
+  };
+
   // Get adaptation advice
   const getAdaptationAdvice = async () => {
     if (!missing.trim() || !selectedRecipe) return;
@@ -177,20 +235,163 @@ function App() {
     }
   }, [selectedRecipe]);
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  // Try to hydrate user from token on first load
+  useEffect(() => {
+    const init = async () => {
+      if (authToken && !authUser) {
+        try {
+          const user = await api.getCurrentUser(authToken);
+          setAuthUser(user);
+          setCurrentView('main');
+        } catch (err) {
+          console.error('Failed to hydrate session', err);
+          setAuthToken(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('pm_token');
+          }
+        }
+      }
+    };
+    init();
+  }, [authToken, authUser]);
+
+  // Keep saved count fresh for header badge
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      if (!active) return;
+      await refreshSavedMeta();
+    };
+    run();
+    return () => {
+      active = false;
+    };
+  }, [authToken, authUser]);
+
+  const handleAuthSuccess = ({ token, user }) => {
+    // Reset app-visible state so new session starts clean
+    setIngredients('');
+    setResults([]);
+    setError('');
+    setSelectedRecipe(null);
+    setMissing('');
+    setAdaptedStep('');
+    setVideos([]);
+    clearDetections();
+    clearAllImages();
+
+    setAuthToken(token);
+    setAuthUser(user);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pm_token', token);
+    }
+    setCurrentView('main');
+  };
+
+  const handleLogout = () => {
+    // Clear UI state when logging out to avoid leaving residue
+    setIngredients('');
+    setResults([]);
+    setError('');
+    setSelectedRecipe(null);
+    setMissing('');
+    setAdaptedStep('');
+    setVideos([]);
+    clearDetections();
+    clearAllImages();
+
+    setAuthToken(null);
+    setAuthUser(null);
+    setSavedCount(0);
+    setSavedTitleSet(new Set());
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('pm_token');
+    }
+    setCurrentView('login');
+  };
+
+  // --- Auth Screens ---
+  if (!authUser) {
+    if (currentView === 'signup') {
+      return (
+        <SignupPage
+          onSignup={async ({ name, email, password }) => {
+            const data = await api.signup({ name, email, password });
+            handleAuthSuccess(data);
+          }}
+          onSwitchToLogin={() => setCurrentView('login')}
+        />
+      );
+    }
+
+    return (
+      <LoginPage
+        onLogin={async ({ email, password }) => {
+          const data = await api.login({ email, password });
+          handleAuthSuccess(data);
+        }}
+        onSwitchToSignup={() => setCurrentView('signup')}
+      />
+    );
+  }
+
+  if (currentView === 'profile') {
+    return (
+      <>
+        <ProfilePage
+          user={authUser}
+          token={authToken}
+          onNavigate={setCurrentView}
+          onLogout={handleLogout}
+          onToast={setToast}
+          onRunSearch={(q) => {
+            setCurrentView('main');
+            setIngredients(q);
+            // run immediately with provided string
+            searchRecipes(q);
+          }}
+          onOpenSavedRecipe={(r) => {
+            // Stay on profile; open the modal on top.
+            openRecipe({
+              title: r.title,
+              ingredients: r.ingredients || '',
+              instructions: r.instructions || '',
+              time: r.time,
+            });
+          }}
+          onSavedChanged={refreshSavedMeta}
+        />
+
+        <RecipeModal
+          recipe={selectedRecipe}
+          onClose={closeModal}
+          missing={missing}
+          setMissing={setMissing}
+          adaptedStep={adaptedStep}
+          adaptLoading={adaptLoading}
+          onGetAdaptation={getAdaptationAdvice}
+          videos={videos}
+          videosLoading={videosLoading}
+          onSaveRecipe={authToken ? handleSaveRecipe : undefined}
+          savingRecipe={savingRecipe}
+          isSaved={!!selectedRecipe && savedTitleSet.has(normalizeTitle(selectedRecipe.title))}
+        />
+
+        <Toast toast={toast} onClose={() => setToast(null)} />
+      </>
+    );
   }
 
   return (
     <div className="app">
       <div className="app-container">
-        <Header />
+        <Header user={authUser} onNavigate={setCurrentView} onLogout={handleLogout} />
 
         <div className="content-wrapper">
           <SearchBox
             ingredients={ingredients}
             setIngredients={setIngredients}
-            onSearch={searchRecipes}
+            onSearch={() => searchRecipes()}
             loading={loading}
             error={error}
           />
@@ -229,7 +430,12 @@ function App() {
         onGetAdaptation={getAdaptationAdvice}
         videos={videos}
         videosLoading={videosLoading}
+        onSaveRecipe={authToken ? handleSaveRecipe : undefined}
+        savingRecipe={savingRecipe}
+        isSaved={!!selectedRecipe && savedTitleSet.has(normalizeTitle(selectedRecipe.title))}
       />
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

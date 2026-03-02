@@ -7,6 +7,11 @@ import requests
 import json
 import os
 import base64
+import sqlite3
+from datetime import datetime
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+import io
+from PIL import Image
 
 from ml_infer_ingredients import load_model, predict_ingredients_from_bytes
 
@@ -32,6 +37,146 @@ except ImportError:
 
 app = Flask(__name__)
 CORS(app)
+
+# --- Simple Token-Based Auth Setup (SQLite + signed tokens) ---
+DATABASE_PATH = os.path.join("data", "users.db")
+AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or OPENROUTER_API_KEY or "dev-secret-key"
+TOKEN_EXP_SECONDS = 60 * 60 * 24 * 7  # 7 days
+
+serializer = URLSafeTimedSerializer(AUTH_SECRET)
+
+
+def _encode_crop_bytes(img: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90, optimize=True)
+    return buf.getvalue()
+
+
+def _generate_grid_crops(image_bytes: bytes):
+    """
+    Split a single image into multiple overlapping grid crops.
+    Returns List[Tuple[str, bytes]] where name is crop label.
+    """
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    w, h = img.size
+
+    crops = [("full", image_bytes)]
+
+    # If the image is too small, skip cropping
+    if min(w, h) < 240:
+        return crops
+
+    # Add 2x2 and 3x3 crops with slight overlap to avoid splitting ingredients.
+    grids = [(2, 2), (3, 3)]
+    overlap = 0.08
+
+    for rows, cols in grids:
+        cell_w = w / cols
+        cell_h = h / rows
+        pad_w = cell_w * overlap
+        pad_h = cell_h * overlap
+        for r in range(rows):
+            for c in range(cols):
+                left = int(max(0, (c * cell_w) - pad_w))
+                top = int(max(0, (r * cell_h) - pad_h))
+                right = int(min(w, ((c + 1) * cell_w) + pad_w))
+                bottom = int(min(h, ((r + 1) * cell_h) + pad_h))
+                if right - left < 120 or bottom - top < 120:
+                    continue
+                crop = img.crop((left, top, right, bottom))
+                crops.append((f"grid_{rows}x{cols}_r{r}c{c}", _encode_crop_bytes(crop)))
+
+    # Add a center crop (helps when ingredient is centered)
+    cx0 = int(w * 0.1)
+    cy0 = int(h * 0.1)
+    cx1 = int(w * 0.9)
+    cy1 = int(h * 0.9)
+    if cx1 - cx0 >= 160 and cy1 - cy0 >= 160:
+        crops.append(("center_80", _encode_crop_bytes(img.crop((cx0, cy0, cx1, cy1)))))
+
+    return crops
+
+
+def get_db_connection():
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Users table
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            preferences TEXT
+        )
+        """
+    )
+    # Saved recipes for each user
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS saved_recipes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            ingredients TEXT,
+            instructions TEXT,
+            time INTEGER,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        """
+    )
+    # Search history
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS search_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            query TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        """
+    )
+    # Helpful indexes (safe to run repeatedly)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_saved_recipes_user_created ON saved_recipes(user_id, created_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_saved_recipes_user_title ON saved_recipes(user_id, title)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_search_history_user_created ON search_history(user_id, created_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_search_history_user_query ON search_history(user_id, query)")
+    conn.commit()
+    conn.close()
+
+
+def generate_token(user_id):
+    return serializer.dumps({"user_id": user_id})
+
+
+def verify_token(token):
+    try:
+        data = serializer.loads(token, max_age=TOKEN_EXP_SECONDS)
+        return data.get("user_id")
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+def get_auth_user_id():
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        return verify_token(token)
+    return None
+
+
+init_db()
 
 # -- Load Recipes & TF-IDF Search Setup --
 df = pd.read_csv("data/final_recipes.csv")
@@ -66,7 +211,339 @@ def search():
             'time': int(df.iloc[idx]['TotalTimeInMins']) if pd.notnull(df.iloc[idx]['TotalTimeInMins']) else None,
             'score': float(scores[idx])
         })
+
+    # Optionally record search history for authenticated users (dedup by query per user)
+    user_id = get_auth_user_id()
+    if user_id and user_query.strip():
+        try:
+            normalized = " ".join(user_query.strip().split()).lower()
+            conn = get_db_connection()
+            # Remove older duplicates so the list stays unique
+            conn.execute(
+                "DELETE FROM search_history WHERE user_id = ? AND lower(trim(query)) = ?",
+                (user_id, normalized),
+            )
+            conn.execute(
+                "INSERT INTO search_history (user_id, query, created_at) VALUES (?, ?, ?)",
+                (user_id, user_query.strip(), datetime.utcnow().isoformat()),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print("Failed to record search history:", str(e))
+
     return jsonify(results)
+
+
+# -- Auth & User Profile Endpoints --
+@app.route('/auth/signup', methods=['POST'])
+def signup():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '').strip()
+
+    if not name or not email or not password:
+        return jsonify({"error": "Name, email, and password are required"}), 400
+
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    # Simple hash: not production-grade but better than plain text
+    # Use sha256 with salt derived from AUTH_SECRET
+    import hashlib
+
+    salt = AUTH_SECRET.encode("utf-8")
+    pwd_hash = hashlib.sha256(salt + password.encode("utf-8")).hexdigest()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO users (name, email, password_hash, created_at, preferences)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (name, email, pwd_hash, datetime.utcnow().isoformat(), json.dumps({"diet": "none"})),
+        )
+        conn.commit()
+        user_id = cur.lastrowid
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"error": "An account with this email already exists"}), 400
+
+    cur.execute("SELECT id, name, email, created_at, preferences FROM users WHERE id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+
+    token = generate_token(user_id)
+    profile = {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "created_at": row["created_at"],
+        "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
+    }
+    return jsonify({"token": token, "user": profile}), 201
+
+
+@app.route('/auth/login', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = (data.get('password') or '').strip()
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    import hashlib
+
+    salt = AUTH_SECRET.encode("utf-8")
+    pwd_hash = hashlib.sha256(salt + password.encode("utf-8")).hexdigest()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, name, email, password_hash, created_at, preferences FROM users WHERE email = ?",
+        (email,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row or row["password_hash"] != pwd_hash:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    token = generate_token(row["id"])
+    profile = {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "created_at": row["created_at"],
+        "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
+    }
+    return jsonify({"token": token, "user": profile}), 200
+
+
+@app.route('/auth/me', methods=['GET'])
+def me():
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, name, email, created_at, preferences FROM users WHERE id = ?",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"error": "User not found"}), 404
+
+    profile = {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "created_at": row["created_at"],
+        "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
+    }
+    return jsonify({"user": profile}), 200
+
+
+@app.route('/user/preferences', methods=['POST'])
+def update_preferences():
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    preferences = data.get("preferences") or {}
+
+    conn = get_db_connection()
+    conn.execute(
+        "UPDATE users SET preferences = ? WHERE id = ?",
+        (json.dumps(preferences), user_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True, "preferences": preferences}), 200
+
+
+@app.route('/user/saved-recipes', methods=['GET', 'POST', 'DELETE'])
+def saved_recipes():
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if request.method == 'GET':
+        cur.execute(
+            """
+            SELECT id, title, ingredients, instructions, time, created_at
+            FROM saved_recipes
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            """,
+            (user_id,),
+        )
+        rows = cur.fetchall()
+        conn.close()
+        # De-duplicate by title (most recent wins)
+        seen_titles = set()
+        recipes = []
+        for r in rows:
+            key = (r["title"] or "").strip().lower()
+            if not key or key in seen_titles:
+                continue
+            seen_titles.add(key)
+            recipes.append(
+                {
+                    "id": r["id"],
+                    "title": r["title"],
+                    "ingredients": r["ingredients"],
+                    "instructions": r["instructions"],
+                    "time": r["time"],
+                    "created_at": r["created_at"],
+                }
+            )
+        return jsonify({"recipes": recipes}), 200
+
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        title = (data.get("title") or "").strip()
+        if not title:
+            conn.close()
+            return jsonify({"error": "Title is required"}), 400
+
+        ingredients = data.get("ingredients") or ""
+        instructions = data.get("instructions") or ""
+        time_val = data.get("time")
+
+        # Prevent duplicates: one saved recipe per title per user
+        now = datetime.utcnow().isoformat()
+        cur.execute(
+            "SELECT id FROM saved_recipes WHERE user_id = ? AND lower(trim(title)) = ? LIMIT 1",
+            (user_id, title.lower()),
+        )
+        existing = cur.fetchone()
+        if existing:
+            recipe_id = existing["id"]
+            cur.execute(
+                """
+                UPDATE saved_recipes
+                SET ingredients = ?, instructions = ?, time = ?, created_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (
+                    ingredients,
+                    instructions,
+                    int(time_val) if isinstance(time_val, (int, float)) else None,
+                    now,
+                    recipe_id,
+                    user_id,
+                ),
+            )
+            conn.commit()
+            conn.close()
+            return jsonify({"id": recipe_id, "success": True, "duplicate": True}), 200
+
+        cur.execute(
+            """
+            INSERT INTO saved_recipes (user_id, title, ingredients, instructions, time, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                title,
+                ingredients,
+                instructions,
+                int(time_val) if isinstance(time_val, (int, float)) else None,
+                now,
+            ),
+        )
+        conn.commit()
+        recipe_id = cur.lastrowid
+        conn.close()
+        return jsonify({"id": recipe_id, "success": True, "duplicate": False}), 201
+
+    # DELETE
+    recipe_id = request.args.get("id")
+    clear_all = request.args.get("clear") in ("1", "true", "yes")
+    if clear_all:
+        cur.execute("DELETE FROM saved_recipes WHERE user_id = ?", (user_id,))
+    else:
+        if not recipe_id:
+            conn.close()
+            return jsonify({"error": "Recipe id is required"}), 400
+        cur.execute(
+            "DELETE FROM saved_recipes WHERE id = ? AND user_id = ?",
+            (recipe_id, user_id),
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True}), 200
+
+
+@app.route('/user/search-history', methods=['GET', 'DELETE'])
+def get_search_history():
+    user_id = get_auth_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if request.method == 'DELETE':
+        clear_all = request.args.get("clear") in ("1", "true", "yes")
+        history_id = request.args.get("id")
+        if clear_all:
+            cur.execute("DELETE FROM search_history WHERE user_id = ?", (user_id,))
+            conn.commit()
+            conn.close()
+            return jsonify({"success": True}), 200
+        if not history_id:
+            conn.close()
+            return jsonify({"error": "History id is required"}), 400
+        cur.execute(
+            "DELETE FROM search_history WHERE id = ? AND user_id = ?",
+            (history_id, user_id),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True}), 200
+
+    cur.execute(
+        """
+        SELECT id, query, created_at
+        FROM search_history
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 120
+        """,
+        (user_id,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    # De-duplicate by normalized query (most recent wins)
+    seen = set()
+    history = []
+    for r in rows:
+        q = (r["query"] or "").strip()
+        key = " ".join(q.split()).lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        history.append({"id": r["id"], "query": q, "created_at": r["created_at"]})
+        if len(history) >= 50:
+            break
+
+    return jsonify({"history": history}), 200
 
 # -- 2. AI Adaptation Endpoint (OpenRouter) --
 @app.route('/adapt', methods=['POST'])
@@ -213,17 +690,31 @@ def classify_image():
         # -------- Mode: CNN (multi images, ResNet + optional LLM) --------
         if mode == 'cnn':
             model, class_names, device = get_ingredient_model()
-            threshold = 0.5  # confident CNN predictions
+            threshold = 0.35  # lower threshold for crop-based detection
 
             cnn_ingredients = []
-            for f, img_bytes in zip(files, image_bytes_list):
-                preds = predict_ingredients_from_bytes(
-                    model, class_names, device, img_bytes, top_k=10
-                )
-                all_preds.append({"filename": f.filename, "predictions": preds})
-                for p in preds:
-                    if p["prob"] >= threshold:
-                        cnn_ingredients.append(p["name"])
+
+            # If user uploaded a single combined photo, split into crops and run the same model on each crop.
+            if len(files) == 1:
+                f = files[0]
+                crop_list = _generate_grid_crops(image_bytes_list[0])
+                for crop_name, crop_bytes in crop_list:
+                    preds = predict_ingredients_from_bytes(
+                        model, class_names, device, crop_bytes, top_k=10
+                    )
+                    all_preds.append({"filename": f"{f.filename}:{crop_name}", "predictions": preds})
+                    for p in preds:
+                        if p["prob"] >= threshold:
+                            cnn_ingredients.append(p["name"])
+            else:
+                for f, img_bytes in zip(files, image_bytes_list):
+                    preds = predict_ingredients_from_bytes(
+                        model, class_names, device, img_bytes, top_k=10
+                    )
+                    all_preds.append({"filename": f.filename, "predictions": preds})
+                    for p in preds:
+                        if p["prob"] >= threshold:
+                            cnn_ingredients.append(p["name"])
 
             # Deduplicate CNN ingredients
             seen_cnn = set()

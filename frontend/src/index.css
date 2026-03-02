@@ -19,6 +19,19 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Brand / design tokens */
+  --pm-bg: #faf8f3;
+  --pm-surface: #ffffff;
+  --pm-text: #2c2416;
+  --pm-muted: #6b6457;
+  --pm-border: #e8e5dc;
+  --pm-accent: #ff6b35;
+  --pm-accent-2: #f7931e;
+  --pm-danger: #991b1b;
+  --pm-radius-md: 12px;
+  --pm-radius-lg: 18px;
+  --pm-shadow-md: 0 16px 40px rgba(0, 0, 0, 0.06);
 }
 
 body {
