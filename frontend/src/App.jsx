@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import Header from './components/Header';
+import LoginPage from './components/LoginPage';
 import SearchBox from './components/SearchBox';
 import ImageUploadSection from './components/ImageUploadSection';
 import RecipeList from './components/RecipeList';
@@ -10,6 +11,8 @@ import { useIngredientDetection } from './hooks/useIngredientDetection';
 import { api } from './services/api';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   // Recipe search state
   const [ingredients, setIngredients] = useState('');
   const [results, setResults] = useState([]);
@@ -173,6 +176,10 @@ function App() {
         .finally(() => setVideosLoading(false));
     }
   }, [selectedRecipe]);
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="app">
