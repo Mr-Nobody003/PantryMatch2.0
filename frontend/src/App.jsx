@@ -360,6 +360,11 @@ function App() {
             });
           }}
           onSavedChanged={refreshSavedMeta}
+          onPreferencesSaved={(prefs) => {
+            setAuthUser((prev) =>
+              prev ? { ...prev, preferences: { ...(prev.preferences || {}), ...prefs } } : prev
+            );
+          }}
         />
 
         <RecipeModal

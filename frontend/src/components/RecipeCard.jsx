@@ -1,13 +1,41 @@
 import React from 'react';
 
+function getDietInfo(dietaryPreference) {
+  const raw = (dietaryPreference || '').toString().toLowerCase();
+  if (!raw) return null;
+  if (raw.includes('non')) {
+    return { type: 'nonveg', label: 'Non-vegetarian recipe' };
+  }
+  if (raw.includes('veg')) {
+    return { type: 'veg', label: 'Vegetarian recipe' };
+  }
+  return null;
+}
+
 function RecipeCard({ recipe, index, onViewRecipe }) {
+  const dietInfo = getDietInfo(recipe.dietaryPreference);
+
   return (
     <article
       className="recipe-tile"
       style={{ '--delay': `${index * 50}ms` }}
     >
       <div className="tile-header">
-        <h3 className="tile-title">{recipe.title}</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+          <h3 className="tile-title">{recipe.title}</h3>
+          {dietInfo && (
+            <div
+              className={`diet-icon ${dietInfo.type === 'veg' ? 'diet-icon--veg' : 'diet-icon--nonveg'}`}
+              aria-label={dietInfo.label}
+              title={dietInfo.label}
+            >
+              <span className="diet-icon-dot" />
+              <span className="diet-icon-text">
+                {dietInfo.type === 'veg' ? 'Veg' : 'Non‑veg'}
+              </span>
+            </div>
+          )}
+        </div>
         {recipe.time && (
           <div className="tile-badge">
             <svg className="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">

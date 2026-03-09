@@ -181,6 +181,47 @@ init_db()
 # -- Load Recipes & TF-IDF Search Setup --
 df = pd.read_csv("data/final_recipes.csv")
 
+# Optionally enrich recipes with diet & spice classifications
+RECIPE_DIET_MAP = {}
+RECIPE_SPICE_MAP = {}
+
+
+def _normalize_title_for_lookup(title):
+    return (str(title) or "").strip().lower()
+
+
+try:
+    classifications_df = pd.read_csv("data/recipe_classifications.csv")
+    # Keep only the columns we care about and merge by recipe title
+    classifications_df = classifications_df[
+        ["TranslatedRecipeName", "Spice Tolerance", "Dietary Preference"]
+    ]
+    df = df.merge(
+        classifications_df,
+        on="TranslatedRecipeName",
+        how="left",
+        suffixes=("", "_cls"),
+    )
+
+    # Build quick lookup maps for saved-recipes and other places that only have titles
+    for _, row in df[["TranslatedRecipeName", "Spice Tolerance", "Dietary Preference"]].iterrows():
+        key = _normalize_title_for_lookup(row["TranslatedRecipeName"])
+        if not key:
+            continue
+        diet_val = row.get("Dietary Preference")
+        spice_val = row.get("Spice Tolerance")
+        # Last one wins, but dataset titles should be unique
+        RECIPE_DIET_MAP[key] = diet_val
+        RECIPE_SPICE_MAP[key] = spice_val
+except FileNotFoundError:
+    # If the file is missing, keep columns empty so code still works
+    print(
+        "Warning: data/recipe_classifications.csv not found. "
+        "Dietary preference and spice filters will be disabled and icons hidden."
+    )
+    df["Spice Tolerance"] = None
+    df["Dietary Preference"] = None
+
 # Combine processed_ingredients and ingredient_synonyms for better matching
 # Handle NaN values in ingredient_synonyms column and normalize
 df['ingredient_synonyms'] = df['ingredient_synonyms'].fillna('')
@@ -194,26 +235,149 @@ df['combined_ingredients'] = df['processed_ingredients'].astype(str) + ' ' + df[
 vectorizer = TfidfVectorizer(stop_words='english')
 tfidf_matrix = vectorizer.fit_transform(df['combined_ingredients'])
 
+
+def _normalize_pref_value(value):
+    """
+    Normalize preference strings to a simple, comparable form.
+    Examples:
+      "Non-Vegetarian" -> "nonvegetarian"
+      "No specific preference" -> "none"
+      "Non-Spicy" -> "nonspicy"
+    """
+    if not isinstance(value, str):
+        return None
+    return value.strip().lower().replace("-", "").replace(" ", "")
+
+
+def _extract_user_preference_flags(prefs):
+    """
+    Extract normalized diet & spice preference flags from a preferences dict.
+    Supported diet values include:
+      - "No specific preference", "none", "any"
+      - "Vegetarian"
+      - "Non-Vegetarian", "Non Veg", etc.
+    Supported spice values include:
+      - "Spicy"
+      - "Non-Spicy", "Mild"
+    """
+    prefs = prefs or {}
+
+    raw_diet = (
+        prefs.get("dietaryPreference")
+        or prefs.get("dietary_preference")
+        or prefs.get("diet")
+    )
+    raw_spice = (
+        prefs.get("spiceTolerance")
+        or prefs.get("spice_tolerance")
+        or prefs.get("spice")
+    )
+
+    diet = _normalize_pref_value(raw_diet)
+    spice = _normalize_pref_value(raw_spice)
+
+    # Map "no preference" style values to None (no filtering)
+    if diet in {"none", "nospecificpreference", "any", ""}:
+        diet = None
+    if spice in {"none", "any", ""}:
+        spice = None
+
+    return diet, spice
+
+
+def _recipe_matches_flags(row, diet_flag, spice_flag):
+    """
+    Check if a single recipe row matches the given normalized flags.
+    If a flag is None, that dimension is not filtered.
+    """
+    if diet_flag is None and spice_flag is None:
+        return True
+
+    # Normalize classification values from the merged CSV
+    recipe_diet = _normalize_pref_value(row.get("Dietary Preference"))
+    recipe_spice = _normalize_pref_value(row.get("Spice Tolerance"))
+
+    # If a preference is set but the recipe has no classification, exclude it.
+    if diet_flag is not None and not recipe_diet:
+        return False
+    if spice_flag is not None and not recipe_spice:
+        return False
+
+    # Diet filtering
+    if diet_flag is not None:
+        if diet_flag == "vegetarian":
+            if recipe_diet != "vegetarian":
+                return False
+        elif diet_flag in {"nonvegetarian", "nonveg"}:
+            if recipe_diet != "nonvegetarian":
+                return False
+
+    # Spice filtering
+    if spice_flag is not None:
+        if spice_flag == "spicy":
+            if recipe_spice != "spicy":
+                return False
+        elif spice_flag in {"nonspicy", "mild"}:
+            if recipe_spice != "nonspicy":
+                return False
+
+    return True
+
+
 # -- 1. Recipe Search Endpoint --
 @app.route('/search', methods=['GET'])
 def search():
     user_query = request.args.get('q', '')
     user_vec = vectorizer.transform([user_query])
     scores = cosine_similarity(user_vec, tfidf_matrix).flatten()
-    # Get top 6 most relevant recipes instead of 5
-    top_indices = scores.argsort()[-6:][::-1]
+
+    # Load user preferences (if authenticated) to apply diet & spice filters
+    user_id = get_auth_user_id()
+    diet_flag = None
+    spice_flag = None
+    if user_id:
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT preferences FROM users WHERE id = ?", (user_id,))
+            row = cur.fetchone()
+            conn.close()
+            prefs = {}
+            if row and row["preferences"]:
+                try:
+                    prefs = json.loads(row["preferences"]) or {}
+                except Exception:
+                    prefs = {}
+            diet_flag, spice_flag = _extract_user_preference_flags(prefs)
+        except Exception as e:
+            print("Failed to load user preferences:", str(e))
+
+    # Collect the top 6 recipes that both match the query and respect preferences
+    ranked_indices = scores.argsort()[::-1]
+    selected_indices = []
+    for idx in ranked_indices:
+        if len(selected_indices) >= 6:
+            break
+        row = df.iloc[idx]
+        if _recipe_matches_flags(row, diet_flag, spice_flag):
+            selected_indices.append(idx)
+
     results = []
-    for idx in top_indices:
+    for idx in selected_indices:
+        row = df.iloc[idx]
+        diet_val = row.get("Dietary Preference")
+        spice_val = row.get("Spice Tolerance")
         results.append({
-            'title': str(df.iloc[idx]['TranslatedRecipeName']),
-            'ingredients': str(df.iloc[idx]['processed_ingredients']),
-            'instructions': str(df.iloc[idx]['TranslatedInstructions']),
-            'time': int(df.iloc[idx]['TotalTimeInMins']) if pd.notnull(df.iloc[idx]['TotalTimeInMins']) else None,
-            'score': float(scores[idx])
+            'title': str(row['TranslatedRecipeName']),
+            'ingredients': str(row['processed_ingredients']),
+            'instructions': str(row['TranslatedInstructions']),
+            'time': int(row['TotalTimeInMins']) if pd.notnull(row['TotalTimeInMins']) else None,
+            'score': float(scores[idx]),
+            'dietaryPreference': str(diet_val) if pd.notnull(diet_val) else None,
+            'spiceTolerance': str(spice_val) if pd.notnull(spice_val) else None,
         })
 
     # Optionally record search history for authenticated users (dedup by query per user)
-    user_id = get_auth_user_id()
     if user_id and user_query.strip():
         try:
             normalized = " ".join(user_query.strip().split()).lower()
@@ -401,6 +565,11 @@ def saved_recipes():
             if not key or key in seen_titles:
                 continue
             seen_titles.add(key)
+
+            # Attach dietary preference & spice tolerance from our lookup maps (best-effort)
+            diet_val = RECIPE_DIET_MAP.get(key)
+            spice_val = RECIPE_SPICE_MAP.get(key)
+
             recipes.append(
                 {
                     "id": r["id"],
@@ -409,6 +578,8 @@ def saved_recipes():
                     "instructions": r["instructions"],
                     "time": r["time"],
                     "created_at": r["created_at"],
+                    "dietaryPreference": diet_val,
+                    "spiceTolerance": spice_val,
                 }
             )
         return jsonify({"recipes": recipes}), 200

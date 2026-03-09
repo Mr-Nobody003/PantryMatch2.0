@@ -51,7 +51,10 @@ function ImageUploadSection({
         detecting={detectingMulti}
       />
 
-      <div className="image-upload-section" style={{ marginTop: 16 }}>
+      <div
+        className="image-upload-section"
+        style={{ marginTop: 24, display: 'flex', justifyContent: 'center' }}
+      >
         <button
           className="image-upload-button"
           onClick={handleDetect}
@@ -61,9 +64,14 @@ function ImageUploadSection({
             (!singleImageFile && multiImageFiles.length === 0)
           }
         >
-          {detectingSingle || detectingMulti
-            ? 'Detecting all ingredients...'
-            : 'Detect all ingredients'}
+          {detectingSingle || detectingMulti ? (
+            <>
+              <span className="detect-spinner" aria-hidden="true" />
+              <span>Detecting all ingredients…</span>
+            </>
+          ) : (
+            'Detect all ingredients'
+          )}
         </button>
       </div>
 

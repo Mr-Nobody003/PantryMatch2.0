@@ -11,6 +11,7 @@ function ProfilePage({
   onRunSearch,
   onOpenSavedRecipe,
   onSavedChanged,
+  onPreferencesSaved,
 }) {
   const [preferences, setPreferences] = useState(user?.preferences || { diet: 'none' });
   const [savingPrefs, setSavingPrefs] = useState(false);
@@ -151,6 +152,7 @@ function ProfilePage({
       setPrefsError('');
       const updated = await api.updatePreferences(token, preferences);
       setPreferences(updated);
+      onPreferencesSaved?.(updated);
       onToast?.({ type: 'success', title: 'Preferences saved' });
     } catch (err) {
       setPrefsError(err.message || 'Failed to save preferences');
@@ -219,24 +221,23 @@ function ProfilePage({
                 >
                   <option value="none">No specific preference</option>
                   <option value="vegetarian">Vegetarian</option>
-                  <option value="vegan">Vegan</option>
-                  <option value="eggetarian">Eggetarian</option>
+                  <option value="nonvegetarian">Non-Vegetarian</option>
                 </select>
 
                 <label style={{ fontSize: 18, color: '#4a4539', fontWeight: 600, marginTop: 8 }}>
                   Spice tolerance
                 </label>
                 <select
-                  value={preferences?.spice || 'medium'}
+                  value={preferences?.spice || 'none'}
                   onChange={(e) =>
                     setPreferences({ ...(preferences || {}), spice: e.target.value })
                   }
                   className="adaptation-field"
                   style={{ maxWidth: '100%' }}
                 >
-                  <option value="mild">Mild</option>
-                  <option value="medium">Medium</option>
-                  <option value="hot">Hot</option>
+                  <option value="none">No specific preference</option>
+                  <option value="spicy">Spicy</option>
+                  <option value="nonspicy">Non-Spicy</option>
                 </select>
               </div>
 
@@ -325,6 +326,7 @@ function ProfilePage({
                                 type="button"
                                 className="icon-btn"
                                 aria-label="View recipe"
+                                title="View this saved recipe"
                                 onClick={() => onOpenSavedRecipe?.(r)}
                                 disabled={clearing || deletingId === r.id || animatingOutId === r.id}
                               >
@@ -335,12 +337,23 @@ function ProfilePage({
                               </button>
                               <button
                                 type="button"
-                                className="btn btn-ghost"
-                                style={{ padding: '8px 12px', fontSize: 14, minWidth: 92 }}
+                                className="icon-btn"
+                                aria-label="Remove from favorites"
+                                title="Remove from favorites"
                                 onClick={() => handleRemoveSaved(r.id)}
                                 disabled={deletingId === r.id || clearing}
                               >
-                                {deletingId === r.id ? <span className="btn-loader-small" /> : 'Remove'}
+                                {deletingId === r.id ? (
+                                  <span className="btn-loader-small" />
+                                ) : (
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M9 10v8" />
+                                    <path d="M15 10v8" />
+                                    <path d="M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14" />
+                                  </svg>
+                                )}
                               </button>
                             </div>
                           </li>
@@ -404,6 +417,7 @@ function ProfilePage({
                                 type="button"
                                 className="icon-btn"
                                 aria-label="Search again"
+                                title="Run this search again"
                                 onClick={() => onRunSearch?.(h.query)}
                                 disabled={clearing || deletingId === h.id || animatingOutId === h.id}
                               >
@@ -414,12 +428,23 @@ function ProfilePage({
                               </button>
                               <button
                                 type="button"
-                                className="btn btn-ghost"
-                                style={{ padding: '8px 12px', fontSize: 14, minWidth: 92 }}
+                                className="icon-btn"
+                                aria-label="Remove from history"
+                                title="Remove from history"
                                 onClick={() => handleRemoveHistory(h.id)}
                                 disabled={deletingId === h.id || clearing}
                               >
-                                {deletingId === h.id ? <span className="btn-loader-small" /> : 'Remove'}
+                                {deletingId === h.id ? (
+                                  <span className="btn-loader-small" />
+                                ) : (
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <path d="M9 10v8" />
+                                    <path d="M15 10v8" />
+                                    <path d="M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14" />
+                                  </svg>
+                                )}
                               </button>
                             </div>
                           </li>
