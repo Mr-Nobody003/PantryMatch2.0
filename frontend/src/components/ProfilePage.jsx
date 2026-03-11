@@ -167,7 +167,7 @@ function ProfilePage({
   };
 
   return (
-    <div className="app">
+    <div className="app page-profile">
       <div className="app-container">
         <Header user={user} onNavigate={onNavigate} onLogout={onLogout} />
 

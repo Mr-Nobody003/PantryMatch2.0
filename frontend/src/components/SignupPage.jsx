@@ -44,7 +44,7 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
   };
 
   return (
-    <div className="app">
+    <div className="app page-auth">
       <div className="app-container">
         <Header />
 
@@ -87,9 +87,20 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="input-action"
+                  className="password-toggle-btn"
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                    </svg>
+                  )}
                 </button>
               </div>
 
@@ -106,9 +117,20 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                   type="button"
                   onClick={() => setShowConfirmPassword((v) => !v)}
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                  className="input-action"
+                  className="password-toggle-btn"
                 >
-                  {showConfirmPassword ? 'Hide' : 'Show'}
+                  {showConfirmPassword ? (
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+                      <line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                    </svg>
+                  )}
                 </button>
               </div>
 
