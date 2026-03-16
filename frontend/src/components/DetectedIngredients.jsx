@@ -9,6 +9,9 @@ function DetectedIngredients({ cnnDetected, llmDetected }) {
     <div className="detected-summary">
       <div className="detected-group">
         <p className="detected-label">Ingredients detected by ResNet model</p>
+        {cnnDetected.length > 0 && (
+          <p className="detected-count">{cnnDetected.length} ingredients detected</p>
+        )}
         {cnnDetected.length > 0 ? (
           <div className="image-model-chips">
             {cnnDetected.map((ing, idx) => (
@@ -24,6 +27,9 @@ function DetectedIngredients({ cnnDetected, llmDetected }) {
 
       <div className="detected-group">
         <p className="detected-label">All ingredients available (OpenRouter)</p>
+        {llmDetected.length > 0 && (
+          <p className="detected-count">{llmDetected.length} ingredients detected</p>
+        )}
         {llmDetected.length > 0 ? (
           <div className="image-model-chips">
             {llmDetected.map((ing, idx) => (

@@ -402,11 +402,6 @@ function App() {
           />
 
           <ImageUploadSection
-            singleImageFile={singleImageFile}
-            singleImagePreview={singleImagePreview}
-            onSingleImageUpload={handleSingleImageUploadWrapper}
-            onRemoveSingleImage={removeSingleImage}
-            detectingSingle={detectingSingle}
             multiImageFiles={multiImageFiles}
             multiImagePreviews={multiImagePreviews}
             onMultiImageUpload={handleMultiImageUploadWrapper}

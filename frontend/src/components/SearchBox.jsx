@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import Alert from './Alert';
 
 function SearchBox({ 
@@ -8,6 +8,16 @@ function SearchBox({
   loading, 
   error 
 }) {
+  const textareaRef = useRef(null);
+
+  // Auto-expand textarea as content grows
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [ingredients]);
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !loading && ingredients.trim()) {
       onSearch();
@@ -23,14 +33,15 @@ function SearchBox({
             <path d="m21 21-4.35-4.35"></path>
           </svg>
         </div>
-        <input
-          type="text"
+        <textarea
+          ref={textareaRef}
           className="search-field"
           placeholder="What's in your pantry? (e.g., chicken, tomatoes, rice)"
           value={ingredients}
           onChange={(e) => setIngredients(e.target.value)}
           onKeyPress={handleKeyPress}
           disabled={loading}
+          rows="1"
         />
         <button
           className="search-btn"

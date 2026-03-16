@@ -865,24 +865,14 @@ def classify_image():
 
             cnn_ingredients = []
 
-            # If user uploaded a single combined photo, split into crops and run the same model on each crop.
-            if len(files) == 1:
-                f = files[0]
-                crop_list = _generate_grid_crops(image_bytes_list[0])
+            # Process each uploaded image with grid cropping to find all ingredients
+            for f, img_bytes in zip(files, image_bytes_list):
+                crop_list = _generate_grid_crops(img_bytes)
                 for crop_name, crop_bytes in crop_list:
                     preds = predict_ingredients_from_bytes(
                         model, class_names, device, crop_bytes, top_k=10
                     )
                     all_preds.append({"filename": f"{f.filename}:{crop_name}", "predictions": preds})
-                    for p in preds:
-                        if p["prob"] >= threshold:
-                            cnn_ingredients.append(p["name"])
-            else:
-                for f, img_bytes in zip(files, image_bytes_list):
-                    preds = predict_ingredients_from_bytes(
-                        model, class_names, device, img_bytes, top_k=10
-                    )
-                    all_preds.append({"filename": f.filename, "predictions": preds})
                     for p in preds:
                         if p["prob"] >= threshold:
                             cnn_ingredients.append(p["name"])

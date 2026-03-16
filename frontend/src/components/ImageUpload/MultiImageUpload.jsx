@@ -44,7 +44,7 @@ function MultiImageUpload({
 
   return (
     <div className="image-upload-section" style={{ marginTop: 24 }}>
-      <p className="image-upload-title">Option 2: Upload separate images of ingredients</p>
+      <p className="image-upload-title">Upload Images of Your Ingredients</p>
       {imagePreviews && imagePreviews.length > 0 ? (
         <>
           <input
