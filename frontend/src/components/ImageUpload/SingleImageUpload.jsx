@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 
 function SingleImageUpload({ 
   imageFile, 
@@ -8,11 +8,41 @@ function SingleImageUpload({
   detecting 
 }) {
   const inputRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      onImageUpload(null, 'Please upload a valid image file');
+      return;
+    }
+
+    onImageUpload(file, null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
     if (!file.type.startsWith('image/')) {
       onImageUpload(null, 'Please upload a valid image file');
       return;
@@ -33,7 +63,13 @@ function SingleImageUpload({
     <div className="image-upload-section">
       <p className="image-upload-title">Option 1: Upload a single image with all ingredients</p>
       {imagePreview ? (
-        <div className="image-upload-box" style={{ pointerEvents: 'none' }}>
+        <div 
+          className={`image-upload-box ${isDragging ? 'dragging' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'default' }}
+        >
           <input
             ref={inputRef}
             type="file"
@@ -53,7 +89,6 @@ function SingleImageUpload({
                 className="image-remove-btn"
                 onClick={handleRemove}
                 aria-label="Remove image"
-                style={{ pointerEvents: 'auto' }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -64,7 +99,12 @@ function SingleImageUpload({
           </div>
         </div>
       ) : (
-        <label className="image-upload-box">
+        <label 
+          className={`image-upload-box ${isDragging ? 'dragging' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <input
             ref={inputRef}
             type="file"

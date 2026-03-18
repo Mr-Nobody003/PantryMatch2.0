@@ -1001,6 +1001,13 @@
   box-shadow: 0 4px 14px rgba(255, 107, 53, 0.18);
 }
 
+.image-upload-box.dragging {
+  border-color: #ff6b35;
+  border-style: solid;
+  background: #fff5f0;
+  box-shadow: 0 4px 14px rgba(255, 107, 53, 0.28);
+}
+
 .image-upload-input {
   display: none;
 }
@@ -1038,6 +1045,17 @@
   overflow-x: auto;
   overflow-y: visible;
   padding: 8px 10px;
+}
+
+.image-upload-box.dragging .image-upload-preview-wrapper {
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.image-upload-box:has(.image-upload-preview-wrapper).dragging {
+  border: 2px solid #ff6b35;
+  background: #fff5f0;
+  box-shadow: 0 4px 14px rgba(255, 107, 53, 0.28);
 }
 
 .image-preview-container {
