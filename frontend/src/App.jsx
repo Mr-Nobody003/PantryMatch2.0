@@ -408,6 +408,7 @@ function App() {
             onRemoveMultiImage={removeMultiImage}
             detectingMulti={detectingMulti}
             onDetectIngredients={handleDetectIngredients}
+            onIngredientsChange={setIngredients}
             cnnDetected={cnnDetected}
             llmDetected={llmDetected}
           />

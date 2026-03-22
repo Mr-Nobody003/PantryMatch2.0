@@ -1,6 +1,6 @@
 import React from 'react';
 
-function DetectedIngredients({ cnnDetected, llmDetected }) {
+function DetectedIngredients({ cnnDetected, llmDetected, onRemoveCnn, onRemoveLlm }) {
   if (cnnDetected.length === 0 && llmDetected.length === 0) {
     return null;
   }
@@ -14,10 +14,22 @@ function DetectedIngredients({ cnnDetected, llmDetected }) {
         )}
         {cnnDetected.length > 0 ? (
           <div className="image-model-chips">
-            {cnnDetected.map((ing, idx) => (
-              <span key={`${ing}-${idx}`} className="image-model-chip">
-                {ing}
-              </span>
+            {cnnDetected.map((ing) => (
+              <div key={`cnn-${ing}`} className="image-model-chip-wrapper">
+                {onRemoveCnn && (
+                  <button
+                    className="ingredient-remove-btn"
+                    onClick={() => onRemoveCnn(ing)}
+                    title="Remove ingredient"
+                    aria-label={`Remove ${ing}`}
+                  >
+                    ×
+                  </button>
+                )}
+                <span className="image-model-chip">
+                  {ing}
+                </span>
+              </div>
             ))}
           </div>
         ) : (
@@ -32,10 +44,22 @@ function DetectedIngredients({ cnnDetected, llmDetected }) {
         )}
         {llmDetected.length > 0 ? (
           <div className="image-model-chips">
-            {llmDetected.map((ing, idx) => (
-              <span key={`llm-${ing}-${idx}`} className="image-model-chip">
-                {ing}
-              </span>
+            {llmDetected.map((ing) => (
+              <div key={`llm-${ing}`} className="image-model-chip-wrapper">
+                {onRemoveLlm && (
+                  <button
+                    className="ingredient-remove-btn"
+                    onClick={() => onRemoveLlm(ing)}
+                    title="Remove ingredient"
+                    aria-label={`Remove ${ing}`}
+                  >
+                    ×
+                  </button>
+                )}
+                <span className="image-model-chip">
+                  {ing}
+                </span>
+              </div>
             ))}
           </div>
         ) : (
