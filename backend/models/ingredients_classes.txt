@@ -1,18 +1,12 @@
 Amaranth
 Amla
-Anchovy
 Apple
-Apricot
 Avocado
 Banana
-Barley
-Basil
 Beans
 Beetroot
 Bitter Gourd
-Blackberry
 Blueberry
-Bottle Gourd
 Broccoli
 Cabbage
 Cantaloupe
@@ -20,8 +14,6 @@ Capsicum
 Carrot
 Cauliflower
 Chicken
-Chickpeas
-Chilli pepper
 Cinnamon Stick
 Cloves
 Coconut
@@ -29,59 +21,38 @@ Coriander Leaves
 Corn
 Crab
 Cucumber
-Curry Leaves
-Dragon_fruit
-Drumstick
-Duck
+Curd
+Dragon Fruit
 Egg
-Eggplant
-Fig
 Fish
 Garlic
 Ginger
 Grapes
+Green Chilli
 Guava
-Hilsa
-Jalepeno
 Kiwi
 Lemon
 Lentils
 Lettuce
-Lobster
 Lychee
 Mango
-Millet
-Mint Leaves
+Milk
 Mushroom
-Mutton
-Oats
-Okra
 Onion
 Orange
-Papaya
-Paprika
-Peach
-Pear
+Paneer
 Peas
 Pineapple
 Pomegranate
-Pork
 Potato
-Prawn
 Pumpkin
 Raddish
-Raspberry
 Rice
-Ridge Gourd
-Rohu
-Sardine
-Shrimp
-Soy beans
+Salt
+Soya Bean
 Spinach
-Spiny Gourd
-Sponge Gourd
 Strawberry
 Tomato
-Turmeric Root
+Turmeric
 Turnip
 Watermelon
