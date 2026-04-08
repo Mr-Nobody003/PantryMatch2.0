@@ -19,13 +19,11 @@ function ImageUploadSection({
   llmDetected,
 }) {
   const [removedCnnValues, setRemovedCnnValues] = useState(new Set());
-  const [removedLlmValues, setRemovedLlmValues] = useState(new Set());
 
   // Reset removed ingredients when new detection happens
   useEffect(() => {
     setRemovedCnnValues(new Set());
-    setRemovedLlmValues(new Set());
-  }, [cnnDetected, llmDetected]);
+  }, [cnnDetected]);
 
   const handleDetect = async () => {
     if (multiImageFiles.length > 0) {
@@ -37,23 +35,16 @@ function ImageUploadSection({
     const newRemoved = new Set(removedCnnValues);
     newRemoved.add(ingredientName);
     setRemovedCnnValues(newRemoved);
-  };
-
-  const handleRemoveLlm = (ingredientName) => {
-    const newRemoved = new Set(removedLlmValues);
-    newRemoved.add(ingredientName);
-    setRemovedLlmValues(newRemoved);
     
-    // Update the search ingredients when LLM ingredient is removed
-    const filteredLlm = llmDetected.filter((ing) => !newRemoved.has(ing));
+    // Update the search ingredients when CNN ingredient is removed
+    const filteredCnn = cnnDetected.filter((ing) => !newRemoved.has(ing));
     if (onIngredientsChange) {
-      onIngredientsChange(filteredLlm.join(', '));
+      onIngredientsChange(filteredCnn.join(', '));
     }
   };
 
   // Filter out removed ingredients for display
   const displayedCnn = cnnDetected.filter((ing) => !removedCnnValues.has(ing));
-  const displayedLlm = llmDetected.filter((ing) => !removedLlmValues.has(ing));
 
   return (
     <>
@@ -87,9 +78,9 @@ function ImageUploadSection({
 
       <DetectedIngredients 
         cnnDetected={displayedCnn} 
-        llmDetected={displayedLlm}
+        llmDetected={[]}
         onRemoveCnn={handleRemoveCnn}
-        onRemoveLlm={handleRemoveLlm}
+        onRemoveLlm={undefined}
       />
     </>
   );

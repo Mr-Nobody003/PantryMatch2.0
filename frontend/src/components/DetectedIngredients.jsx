@@ -36,36 +36,6 @@ function DetectedIngredients({ cnnDetected, llmDetected, onRemoveCnn, onRemoveLl
           <p className="detected-empty">No ResNet ingredients detected yet.</p>
         )}
       </div>
-
-      <div className="detected-group">
-        <p className="detected-label">All ingredients available (OpenRouter)</p>
-        {llmDetected.length > 0 && (
-          <p className="detected-count">{llmDetected.length} ingredients detected</p>
-        )}
-        {llmDetected.length > 0 ? (
-          <div className="image-model-chips">
-            {llmDetected.map((ing) => (
-              <div key={`llm-${ing}`} className="image-model-chip-wrapper">
-                {onRemoveLlm && (
-                  <button
-                    className="ingredient-remove-btn"
-                    onClick={() => onRemoveLlm(ing)}
-                    title="Remove ingredient"
-                    aria-label={`Remove ${ing}`}
-                  >
-                    ×
-                  </button>
-                )}
-                <span className="image-model-chip">
-                  {ing}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="detected-empty">No OpenRouter ingredients detected yet.</p>
-        )}
-      </div>
     </div>
   );
 }
