@@ -97,6 +97,70 @@ def _generate_grid_crops(image_bytes: bytes):
     return crops
 
 
+def _generate_yolo_crops(image_bytes: bytes):
+    """
+    Use YOLO to detect food objects and return crops around detected boxes.
+    Falls back to grid crops if YOLO doesn't find any objects.
+    Returns List[Tuple[str, bytes]] where name is crop label.
+    """
+    try:
+        from ultralytics import YOLO
+    except ImportError:
+        # If YOLO not installed, fall back to grid crops
+        print("Warning: YOLO not available, falling back to grid crops")
+        return _generate_grid_crops(image_bytes)
+    
+    try:
+        # Load lightweight YOLOv8n model (nano)
+        model = YOLO("yolov8n.pt")
+        
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        w, h = img.size
+        
+        # Run detection
+        results = model(img, conf=0.6, verbose=False)
+        
+        crops = [("full", image_bytes)]  # Always include full image as fallback
+        
+        # Extract bounding boxes from detections
+        if results and len(results) > 0:
+            detections = results[0]
+            boxes = detections.boxes  # Get all boxes
+            
+            for idx, box in enumerate(boxes):
+                # Get coordinates (x1, y1, x2, y2)
+                coords = box.xyxy[0].cpu().numpy()
+                x1, y1, x2, y2 = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
+                
+                # Add padding to avoid cutting off edges
+                pad = 20
+                x1 = max(0, x1 - pad)
+                y1 = max(0, y1 - pad)
+                x2 = min(w, x2 + pad)
+                y2 = min(h, y2 + pad)
+                
+                # Minimum crop size
+                if x2 - x1 < 80 or y2 - y1 < 80:
+                    continue
+                
+                # Crop and encode
+                crop = img.crop((x1, y1, x2, y2))
+                crop_bytes = _encode_crop_bytes(crop)
+                conf = float(box.conf[0])
+                crops.append((f"yolo_obj_{idx}_conf_{conf:.2f}", crop_bytes))
+        
+        # If no objects detected, fall back to grid crops
+        if len(crops) == 1:  # Only "full" image
+            print("YOLO: No objects detected, using grid crops as backup")
+            return _generate_grid_crops(image_bytes)
+        
+        return crops
+        
+    except Exception as e:
+        print(f"Error in YOLO detection: {e}, falling back to grid crops")
+        return _generate_grid_crops(image_bytes)
+
+
 def get_db_connection():
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     conn = sqlite3.connect(DATABASE_PATH)
@@ -865,9 +929,9 @@ def classify_image():
 
             cnn_ingredients = []
 
-            # Process each uploaded image with grid cropping to find all ingredients
+            # Process each uploaded image with YOLO-based smart cropping to find all ingredients
             for f, img_bytes in zip(files, image_bytes_list):
-                crop_list = _generate_grid_crops(img_bytes)
+                crop_list = _generate_yolo_crops(img_bytes)
                 for crop_name, crop_bytes in crop_list:
                     preds = predict_ingredients_from_bytes(
                         model, class_names, device, crop_bytes, top_k=10
