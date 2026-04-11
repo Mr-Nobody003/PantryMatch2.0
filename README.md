@@ -48,9 +48,7 @@ Two powerful options for detecting ingredients from images:
 - **Intelligent Fallback System** - Automatically switches to grid-based cropping (2x2, 3x3 grids with 8% overlap) if YOLO detection fails
 - **Multi-Crop Analysis** - Processes multiple crops per image: full image, YOLO-detected regions, overlapping grid segments, and center crops
 - **Confidence-Based Filtering** - Filters predictions with confidence threshold (0.35) to avoid false positives
-- **AI Ingredient Substitution** - Get intelligent, context-aware suggestions when you're missing an ingredient
-- **AI Vision Detection** - Powered by GPT-4o-mini for high-accuracy ingredient identification
-- **Hybrid Detection System** - Combines custom-trained ResNet18 model with OpenRouter vision API and YOLO object detection for best accuracy
+- **Robust Detection System** - Combines custom-trained ResNet18 model with YOLO object detection for best accuracy
 
 ### 📊 Additional Features
 - **Dietary Classification** - Recipes categorized by dietary preference and spice tolerance
@@ -67,7 +65,6 @@ Two powerful options for detecting ingredients from images:
 - **scikit-learn** - TF-IDF vectorization and cosine similarity
 - **pandas** - Data processing
 - **Pillow (PIL)** - Image processing
-- **OpenRouter API** - AI-powered ingredient substitution and vision (GPT-4o-mini)
 - **RapidAPI** - YouTube video search
 
 ### Frontend
@@ -105,7 +102,6 @@ Two powerful options for detecting ingredients from images:
 
 **API & External Services:**
 - `requests` - HTTP client for external API calls
-- OpenRouter API (via requests) - AI vision and substitution
 - RapidAPI YouTube API - Video search
 
 **Security & Data:**
@@ -140,7 +136,6 @@ npm install
 - Python 3.11 or higher
 - Node.js 18+ and npm
 - API Keys:
-  - OpenRouter API key (for AI substitutions and vision)
   - RapidAPI key (for YouTube videos)
 - GPU (optional but recommended for training the CNN model)
 
@@ -168,7 +163,7 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # Install dependencies
-pip install flask flask-cors pandas scikit-learn requests torch torchvision pillow itsdangerous
+pip install flask flask-cors pandas scikit-learn requests torch torchvision pillow itsdangerous ultralytics
 
 # Set up API keys
 # Copy the example config file and add your API keys
@@ -177,7 +172,6 @@ cp config.example.py config.py  # On Windows: copy config.example.py config.py
 ```
 
 **API Keys Required:**
-- `OPENROUTER_API_KEY` - Get from https://openrouter.ai
 - `RAPIDAPI_KEY` - Get from https://rapidapi.com (YouTube API)
 
 ### 3. Train the Ingredient Classification Model (Optional)
@@ -483,22 +477,15 @@ Detect ingredients from uploaded image(s). Supports two modes with **YOLO-based 
 - **Confidence Filtering**: Only predictions with confidence >= 0.35 are included to avoid false positives
 - **Deduplication**: Results are deduplicated by ingredient name
 
-**Query Parameters:**
-- `mode` (string, optional): 
-  - `cnn` (default): Uses ResNet18 on YOLO crops + optional OpenRouter vision on all images
-  - `llm_only`: Skips ResNet18, uses only OpenRouter vision on the single image
-
 **Request Body:**
 - Content-Type: `multipart/form-data`
-- For `mode=cnn`: `images` (multiple files) or single `image`
-- For `mode=llm_only`: `image` (single file)
+- `images` (multiple files) or single `image`
 
 **Response (200 OK):**
 ```json
 {
   "ingredients": ["chicken", "apple", "corn", "cabbage"],
   "cnn_ingredients": ["Cabbage", "Corn", "Apple"],
-  "llm_ingredients": ["chicken", "apple", "corn", "cabbage", "salt"],
   "per_image_predictions": [
     {
       "filename": "image1.jpg:full",
@@ -525,29 +512,9 @@ Detect ingredients from uploaded image(s). Supports two modes with **YOLO-based 
 - `center_80` - Center 80% crop
 
 **Response Fields:**
-- `ingredients`: Final merged list (prefers LLM if available, otherwise CNN)
-- `cnn_ingredients`: Ingredients detected by ResNet18 model only (confidence > 0.5)
-- `llm_ingredients`: Ingredients detected by OpenRouter vision API
+- `ingredients`: Deduplicated list of detected ingredients from ResNet18
+- `cnn_ingredients`: Ingredients detected by ResNet18 model (confidence > 0.35)
 - `per_image_predictions`: Detailed CNN predictions per image with confidence scores
-
-#### `POST /adapt`
-Get AI-powered ingredient substitution suggestions.
-
-**Request Body:**
-```json
-{
-  "title": "Chicken Curry",
-  "instructions": "Cook chicken with tomato sauce and spices...",
-  "missing": "chicken"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "adaptedStep": "You can substitute chicken with paneer (cottage cheese) for a vegetarian version, or use tofu for a vegan option. Keep the same cooking time and add the substitute at the same step."
-}
-```
 
 #### `GET /videos`
 Get YouTube video tutorials for a recipe.
@@ -922,32 +889,20 @@ Match Score = cosine_similarity(user_ingredients, combined_recipe_text) × 100
 
 ### Image-Based Ingredient Detection
 
-PantryMatch uses a **hybrid approach** combining custom ML and AI vision:
+PantryMatch uses a **multi-crop CNN approach** with smart image segmentation:
 
-#### Option 1: Separate Images (CNN + AI Vision)
-1. **ResNet18 Analysis**: Each uploaded image is analyzed by a custom-trained ResNet18 model
-2. **Confidence Filtering**: Only predictions above 0.5 confidence are kept
-3. **AI Vision Enhancement**: All images are sent to OpenRouter's GPT-4o-mini vision model
-4. **Result Merging**: CNN and AI vision results are combined and deduplicated
-5. **Display**: CNN-only detections shown separately; final list uses AI vision when available
-
-#### Option 2: Combined Image (AI Vision Only)
-1. **Direct AI Analysis**: Single image sent directly to OpenRouter vision API
-2. **Ingredient Extraction**: AI model identifies all visible ingredients
-3. **Result**: Clean ingredient list ready for recipe search
+#### Image Detection Process
+1. **YOLO Detection**: Detects individual food objects in the image
+2. **Smart Cropping**: Generates multiple crops (YOLO objects + grid + center)
+3. **ResNet18 Analysis**: Each crop is analyzed by the fine-tuned ResNet18 model
+4. **Confidence Filtering**: Only predictions above 0.35 confidence are kept
+5. **Deduplication**: Results are merged and deduplicated by ingredient name
 
 **Model Architecture:**
 - **Base**: ResNet18 (pre-trained on ImageNet)
 - **Fine-tuning**: Last fully-connected layer replaced for 51-class classification
 - **Training**: Transfer learning with Adam optimizer, learning rate scheduling
 - **Classes**: 51 ingredient types (fruits and vegetables)
-
-### AI Substitution
-
-When a user is missing an ingredient, the app:
-1. Sends the recipe and missing ingredient to OpenRouter API (GPT-4o-mini model)
-2. Gets context-aware substitution suggestions
-3. Provides Indian cooking-specific alternatives when applicable
 
 ### YOLO Object Detection & Smart Cropping Architecture
 
@@ -1072,21 +1027,19 @@ Deduplication:
 Final ingredients: [Apple, Tomato, Onion]
 ```
 
-#### Hybrid Detection (CNN + YOLO + LLM)
+#### Multi-Crop Detection (CNN + YOLO)
 
-**Full Pipeline** (`mode=cnn` with all images):
+**Full Pipeline**:
 1. YOLO detects objects in image
-2. ResNet18 analyzes each YOLO crop + grid crops
-3. OpenRouter vision analyzes full images
-4. Results merged (OpenRouter takes precedence if available)
-5. Final list deduplicated by name
+2. ResNet18 analyzes each YOLO crop + grid crops + center crop
+3. Results merged with deduplication
+4. Final list returned sorted by confidence
 
 **Example Response:**
 ```json
 {
   "ingredients": ["Chicken", "Tomato", "Onion", "Garlic"],
   "cnn_ingredients": ["Tomato", "Onion"],
-  "llm_ingredients": ["Chicken", "Tomato", "Onion", "Garlic"],
   "per_image_predictions": [
     {
       "filename": "pantry.jpg:full",
@@ -1248,7 +1201,7 @@ This project is open source and available under the [MIT License](LICENSE).
 ## 🙏 Acknowledgments
 
 - Recipe dataset: Indian Food Dataset
-- AI Model: GPT-4o-mini via OpenRouter
+- Object Detection: YOLOv8 (Ultralytics)
 - Video API: RapidAPI YouTube Alternative
 - Deep Learning Framework: PyTorch
 - Pre-trained Model: ResNet18 (ImageNet)
