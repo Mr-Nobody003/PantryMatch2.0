@@ -49,6 +49,7 @@ Two powerful options for detecting ingredients from images:
 - **Multi-Crop Analysis** - Processes multiple crops per image: full image, YOLO-detected regions, overlapping grid segments, and center crops
 - **Confidence-Based Filtering** - Filters predictions with confidence threshold (0.35) to avoid false positives
 - **Robust Detection System** - Combines custom-trained ResNet18 model with YOLO object detection for best accuracy
+- **AI Ingredient Substitutions** - Powered by OpenRouter AI, get intelligent suggestions for missing ingredients with tips on adjusting cooking techniques and quantities
 
 ### 📊 Additional Features
 - **Dietary Classification** - Recipes categorized by dietary preference and spice tolerance
@@ -102,7 +103,8 @@ Two powerful options for detecting ingredients from images:
 
 **API & External Services:**
 - `requests` - HTTP client for external API calls
-- RapidAPI YouTube API - Video search
+- RapidAPI YouTube API - Video search and tutorials
+- OpenRouter AI API - AI-powered ingredient substitutions
 
 **Security & Data:**
 - `itsdangerous` - Security utilities for token generation
@@ -137,6 +139,7 @@ npm install
 - Node.js 18+ and npm
 - API Keys:
   - RapidAPI key (for YouTube videos)
+  - OpenRouter API key (for AI ingredient substitutions)
 - GPU (optional but recommended for training the CNN model)
 
 ## 🚀 Installation
@@ -172,7 +175,10 @@ cp config.example.py config.py  # On Windows: copy config.example.py config.py
 ```
 
 **API Keys Required:**
-- `RAPIDAPI_KEY` - Get from https://rapidapi.com (YouTube API)
+- `RAPIDAPI_KEY` - Get from https://rapidapi.com (YouTube video search API)
+- `OPENROUTER_API_KEY` - Get from https://openrouter.ai (AI ingredient substitutions)
+  - Visit https://openrouter.ai/keys to create an API key
+  - Used for AI-powered suggestions for missing ingredients
 
 ### 3. Train the Ingredient Classification Model (Optional)
 

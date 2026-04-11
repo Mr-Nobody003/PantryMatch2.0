@@ -1925,15 +1925,15 @@
 
 .videos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .video-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
+  gap: 12px;
+  padding: 16px;
   background: #f8f6f0;
   border: 2px solid #e8e5dc;
   border-radius: 12px;
@@ -1949,8 +1949,8 @@
 }
 
 .video-thumbnail {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
   background: #ff6b35;
   border-radius: 12px;
   display: flex;
@@ -1961,8 +1961,8 @@
 }
 
 .video-thumbnail svg {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 
 .video-info {
@@ -1974,12 +1974,12 @@
 
 .video-name {
   font-weight: 600;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1.4;
 }
 
 .video-link-text {
-  font-size: 18px;
+  font-size: 14px;
   color: #6b6457;
 }
 
