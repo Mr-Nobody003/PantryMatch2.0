@@ -1,11 +1,17 @@
 flask==3.0.2
 flask-cors==4.0.0
+gunicorn==21.2.0
+
 pandas==2.2.2
 scikit-learn==1.4.2
-torch==2.2.2
-torchvision==0.17.2
+numpy==1.26.4
+
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+ultralytics==8.1.45
+
 pillow==10.3.0
 requests==2.31.0
 itsdangerous==2.2.0
-ultralytics==8.1.45
-gunicorn==21.2.0
+
+--extra-index-url https://download.pytorch.org/whl/cpu
