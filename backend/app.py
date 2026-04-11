@@ -388,6 +388,12 @@ def _recipe_matches_flags(row, diet_flag, spice_flag):
     return True
 
 
+# -- Root Endpoint --
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"message": "Pantry match backend is running"}), 200
+
+
 # -- 1. Recipe Search Endpoint --
 @app.route('/search', methods=['GET'])
 def search():
