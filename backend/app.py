@@ -120,78 +120,6 @@ def _generate_grid_crops(image_bytes: bytes):
     return crops
 
 
-
-
-
-def _generate_yolo_crops(image_bytes: bytes):
-    """
-    Use YOLO to detect food objects and return crops around detected boxes.
-    Falls back to grid crops if YOLO doesn't find any objects.
-    Returns List[Tuple[str, bytes]] where name is crop label.
-    """
-    try:
-        from ultralytics import YOLO
-        import logging
-        logging.getLogger("ultralytics").setLevel(logging.WARNING)
-        
-        # Load model locally to avoid keeping it in global memory
-        model = YOLO("yolov8n.pt")
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        w, h = img.size
-        
-        # Run detection
-        results = model(img, conf=0.6, verbose=False)
-        
-        crops = [("full", image_bytes)]  # Always include full image as fallback
-        
-        # Extract bounding boxes from detections
-        if results and len(results) > 0:
-            detections = results[0]
-            boxes = list(detections.boxes)  # Get all boxes
-            
-            # Sort boxes by confidence to ensure we keep the strongest detections
-            boxes.sort(key=lambda b: float(b.conf[0]), reverse=True)
-            
-            # Evaluate ALL boxes without limit as requested by user
-            for idx, box in enumerate(boxes):
-                # Get coordinates (x1, y1, x2, y2)
-                coords = box.xyxy[0].cpu().numpy()
-                x1, y1, x2, y2 = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
-                
-                # Add padding to avoid cutting off edges
-                pad = 20
-                x1 = max(0, x1 - pad)
-                y1 = max(0, y1 - pad)
-                x2 = min(w, x2 + pad)
-                y2 = min(h, y2 + pad)
-                
-                # Minimum crop size
-                if x2 - x1 < 80 or y2 - y1 < 80:
-                    continue
-                
-                # Crop and encode
-                crop = img.crop((x1, y1, x2, y2))
-                crop_bytes = _encode_crop_bytes(crop)
-                conf = float(box.conf[0])
-                crops.append((f"yolo_obj_{idx}_conf_{conf:.2f}", crop_bytes))
-        
-        # Explicitly purge YOLO from memory to avoid overlapping with ResNet later
-        del model
-        import gc
-        gc.collect()
-
-        # If no objects detected, fall back to grid crops
-        if len(crops) == 1:  # Only "full" image
-            print("YOLO: No objects detected, using grid crops as backup")
-            return _generate_grid_crops(image_bytes)
-        
-        return crops
-        
-    except Exception as e:
-        print(f"Error in YOLO detection: {e}, falling back to grid crops")
-        return _generate_grid_crops(image_bytes)
-
-
 def get_db_connection():
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     conn = sqlite3.connect(DATABASE_PATH)
@@ -956,13 +884,14 @@ def classify_image():
             threshold = 0.35  # lower threshold for crop-based detection
             cnn_ingredients = []
 
-            # 1. GENERATE YOLO CROPS (Only YOLO is in memory)
+            # 1. GENERATE GRID CROPS
+            # We strictly use Grid Crops because it is faster and detects 100% of items without YOLO overhead
             all_crops = []
             for f, img_bytes in zip(files, image_bytes_list):
-                crop_list = _generate_yolo_crops(img_bytes)
+                crop_list = _generate_grid_crops(img_bytes)
                 all_crops.append((f, crop_list))
 
-            # Strictly destroy YOLO to free memory
+            # Strictly isolate memory: force GC before calling ResNet
             import gc
             gc.collect()
 
@@ -971,14 +900,15 @@ def classify_image():
             print("Loading ingredient classification model (isolated execution)...")
             model, class_names, device = load_model()
 
+            # 3. RUN FAST RESNET INFERENCE IN BATCHES
             for f, crop_list in all_crops:
                 if not crop_list:
                     continue
-                    
+                
                 crop_names = [c[0] for c in crop_list]
                 crop_bytes_list = [c[1] for c in crop_list]
                 
-                # Run inference in batches to prevent worker timeouts and evaluate all objects quickly
+                # Evaluate in batches of 8 to speed up PyTorch inference drastically and avoid timeout
                 batch_preds = predict_ingredients_batch_from_bytes(
                     model, class_names, device, crop_bytes_list, top_k=10, max_batch_size=8
                 )

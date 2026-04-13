@@ -15,16 +15,6 @@ except ImportError:
     print("Matplotlib is not installed. Skipping font cache.")
 
 try:
-    print("Downloading YOLOv8n model...")
-    from ultralytics import YOLO
-    model = YOLO("yolov8n.pt")
-    print("YOLOv8n model downloaded successfully.")
-except ImportError:
-    print("Ultralytics is not installed. Skipping YOLO download.")
-except Exception as e:
-    print(f"Error during YOLO model download: {e}")
-
-try:
     print("Pre-loading PyTorch models (ResNet)...")
     from ml_infer_ingredients import load_model
     # load_model() initializes the PyTorch topology
