@@ -187,6 +187,12 @@ def get_auth_user_id():
 
 init_db()
 
+
+# -- Root Endpoint (Health Check for Render) --
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"status": "Pantry match backend is running"}), 200
+
 # -- Load Recipes & TF-IDF Search Setup --
 df = pd.read_csv("data/final_recipes.csv")
 
