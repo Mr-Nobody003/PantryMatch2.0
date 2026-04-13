@@ -104,6 +104,7 @@ def predict_ingredients_from_bytes(
     """
     import torch
     transform = _build_transform()
+    from PIL import Image
 
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     tensor = transform(image).unsqueeze(0).to(device)  # (1, C, H, W)
