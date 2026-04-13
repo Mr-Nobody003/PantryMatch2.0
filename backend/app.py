@@ -123,37 +123,19 @@ def _generate_grid_crops(image_bytes: bytes):
 
 
 
-YOLO_MODEL = None
-
-def get_yolo_model():
-    """Lazy-load the YOLOv8 model."""
-    global YOLO_MODEL
-    if YOLO_MODEL is None:
-        try:
-            from ultralytics import YOLO
-            import logging
-            logging.getLogger("ultralytics").setLevel(logging.WARNING)
-            YOLO_MODEL = YOLO("yolov8n.pt")
-        except ImportError:
-            print("Warning: YOLO not available, falling back to grid crops")
-            YOLO_MODEL = False
-        except Exception as e:
-            print(f"Error loading YOLO: {e}")
-            YOLO_MODEL = False
-    return YOLO_MODEL
-
-
 def _generate_yolo_crops(image_bytes: bytes):
     """
     Use YOLO to detect food objects and return crops around detected boxes.
     Falls back to grid crops if YOLO doesn't find any objects.
     Returns List[Tuple[str, bytes]] where name is crop label.
     """
-    model = get_yolo_model()
-    if not model:
-        return _generate_grid_crops(image_bytes)
-
     try:
+        from ultralytics import YOLO
+        import logging
+        logging.getLogger("ultralytics").setLevel(logging.WARNING)
+        
+        # Load model locally to avoid keeping it in global memory
+        model = YOLO("yolov8n.pt")
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         w, h = img.size
         
@@ -193,6 +175,11 @@ def _generate_yolo_crops(image_bytes: bytes):
                 conf = float(box.conf[0])
                 crops.append((f"yolo_obj_{idx}_conf_{conf:.2f}", crop_bytes))
         
+        # Purge the YOLO model from memory immediately after crop generation!
+        del model
+        import gc
+        gc.collect()
+
         # If no objects detected, fall back to grid crops
         if len(crops) == 1:  # Only "full" image
             print("YOLO: No objects detected, using grid crops as backup")
@@ -927,24 +914,6 @@ def get_youtube_videos():
     return jsonify(videos)
 
 # -- 4. Image Ingredient Classification Endpoint (ResNet18) --
-ING_MODEL = None
-ING_CLASSES = None
-ING_DEVICE = None
-
-
-def get_ingredient_model():
-    """
-    Lazy-load the trained ingredient classification model.
-    """
-    global ING_MODEL, ING_CLASSES, ING_DEVICE
-    if ING_MODEL is None:
-        print("Loading ingredient classification model...")
-        model, class_names, device = load_model()
-        ING_MODEL = model
-        ING_CLASSES = class_names
-        ING_DEVICE = device
-    return ING_MODEL, ING_CLASSES, ING_DEVICE
-
 
 @app.route('/classify-image', methods=['POST'])
 def classify_image():
@@ -984,14 +953,27 @@ def classify_image():
 
         # -------- Mode: CNN (multi images, ResNet + optional LLM) --------
         if mode == 'cnn':
-            model, class_names, device = get_ingredient_model()
             threshold = 0.35  # lower threshold for crop-based detection
-
             cnn_ingredients = []
 
-            # Process each uploaded image with YOLO-based smart cropping to find all ingredients
+            # 1. PHASE ONE: GENERATE YOLO CROPS
+            # Only YOLO is alive in memory here
+            all_crops = []
             for f, img_bytes in zip(files, image_bytes_list):
                 crop_list = _generate_yolo_crops(img_bytes)
+                all_crops.append((f, crop_list))
+
+            # Strictly force a garbage collection to destroy YOLO before loading ResNet
+            import gc
+            gc.collect()
+
+            # 2. PHASE TWO: INFER WITH RESNET
+            # YOLO is gone. Only ResNet is alive in memory here.
+            from ml_infer_ingredients import load_model, predict_ingredients_from_bytes
+            print("Loading ingredient classification model (isolated execution)...")
+            model, class_names, device = load_model()
+
+            for f, crop_list in all_crops:
                 for crop_name, crop_bytes in crop_list:
                     preds = predict_ingredients_from_bytes(
                         model, class_names, device, crop_bytes, top_k=10
@@ -1000,6 +982,10 @@ def classify_image():
                     for p in preds:
                         if p["prob"] >= threshold:
                             cnn_ingredients.append(p["name"])
+            
+            # Destroy ResNet model completely to free RAM for subsequent API calls
+            del model
+            gc.collect()
 
             # Deduplicate CNN ingredients
             seen_cnn = set()
