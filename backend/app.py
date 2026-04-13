@@ -175,7 +175,7 @@ def _generate_yolo_crops(image_bytes: bytes):
                 conf = float(box.conf[0])
                 crops.append((f"yolo_obj_{idx}_conf_{conf:.2f}", crop_bytes))
         
-        # Purge the YOLO model from memory immediately after crop generation!
+        # Explicitly purge YOLO from memory to avoid overlapping with ResNet later
         del model
         import gc
         gc.collect()
@@ -956,19 +956,17 @@ def classify_image():
             threshold = 0.35  # lower threshold for crop-based detection
             cnn_ingredients = []
 
-            # 1. PHASE ONE: GENERATE YOLO CROPS
-            # Only YOLO is alive in memory here
+            # 1. GENERATE YOLO CROPS (Only YOLO is in memory)
             all_crops = []
             for f, img_bytes in zip(files, image_bytes_list):
                 crop_list = _generate_yolo_crops(img_bytes)
                 all_crops.append((f, crop_list))
 
-            # Strictly force a garbage collection to destroy YOLO before loading ResNet
+            # Strictly destroy YOLO to free memory
             import gc
             gc.collect()
 
-            # 2. PHASE TWO: INFER WITH RESNET
-            # YOLO is gone. Only ResNet is alive in memory here.
+            # 2. LOAD RESNET (Only ResNet is in memory)
             from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
             print("Loading ingredient classification model (isolated execution)...")
             model, class_names, device = load_model()
