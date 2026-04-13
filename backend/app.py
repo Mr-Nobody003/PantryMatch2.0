@@ -118,23 +118,37 @@ def _generate_grid_crops(image_bytes: bytes):
     return crops
 
 
+YOLO_MODEL = None
+
+def get_yolo_model():
+    """Lazy-load the YOLOv8 model."""
+    global YOLO_MODEL
+    if YOLO_MODEL is None:
+        try:
+            from ultralytics import YOLO
+            import logging
+            logging.getLogger("ultralytics").setLevel(logging.WARNING)
+            YOLO_MODEL = YOLO("yolov8n.pt")
+        except ImportError:
+            print("Warning: YOLO not available, falling back to grid crops")
+            YOLO_MODEL = False
+        except Exception as e:
+            print(f"Error loading YOLO: {e}")
+            YOLO_MODEL = False
+    return YOLO_MODEL
+
+
 def _generate_yolo_crops(image_bytes: bytes):
     """
     Use YOLO to detect food objects and return crops around detected boxes.
     Falls back to grid crops if YOLO doesn't find any objects.
     Returns List[Tuple[str, bytes]] where name is crop label.
     """
-    try:
-        from ultralytics import YOLO
-    except ImportError:
-        # If YOLO not installed, fall back to grid crops
-        print("Warning: YOLO not available, falling back to grid crops")
+    model = get_yolo_model()
+    if not model:
         return _generate_grid_crops(image_bytes)
-    
+
     try:
-        # Load lightweight YOLOv8n model (nano)
-        model = YOLO("yolov8n.pt")
-        
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         w, h = img.size
         
@@ -1001,6 +1015,9 @@ def classify_image():
     except Exception as e:
         print("Error in /classify-image:", str(e))
         return jsonify({"error": "Failed to classify image", "details": str(e)}), 500
+    finally:
+        import gc
+        gc.collect()
 
 
 # -- Run App --
