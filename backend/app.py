@@ -61,7 +61,7 @@ else:
 
 # --- Simple Token-Based Auth Setup (SQLite + signed tokens) ---
 DATABASE_PATH = os.path.join("data", "users.db")
-AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or OPENROUTER_API_KEY or "dev-secret-key"
+AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or "pantrymatch-dev-secret-key-for-auth"
 TOKEN_EXP_SECONDS = 60 * 60 * 24 * 7  # 7 days
 
 serializer = URLSafeTimedSerializer(AUTH_SECRET)
@@ -986,114 +986,9 @@ def classify_image():
                     seen_cnn.add(key)
                     cnn_ingredients_unique.append(name)
 
-        # -------- Shared LLM (OpenRouter) for both modes --------
-        try:
-            if image_bytes_list and OPENROUTER_API_KEY:
-                if mode == 'llm_only':
-                    # Single-image, LLM‑only path: use first image only
-                    img_b64 = base64.b64encode(image_bytes_list[0]).decode("utf-8")
-                    data_url = f"data:image/jpeg;base64,{img_b64}"
-                    content_parts = [
-                        {
-                            "type": "text",
-                            "text": (
-                                "Look at this image and list all food ingredients you can see. "
-                                "Return ONLY a comma-separated list of ingredient names, "
-                                "no explanations or extra text."
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": data_url},
-                        },
-                    ]
-                else:
-                    # CNN mode: send all images and hint with known CNN ingredients
-                    known_list = ", ".join(cnn_ingredients_unique) if cnn_ingredients_unique else "none"
-                    content_parts = [
-                        {
-                            "type": "text",
-                            "text": (
-                                "Look at these images and list all food ingredients you can see. "
-                                "Return ONLY a comma-separated list of ingredient names, "
-                                "no explanations or extra text.\n\n"
-                                f"Ingredients already detected by another model: {known_list}.\n"
-                                "Use that list as a hint but still include every ingredient you see in the final response, even if it was already detected."
-                            ),
-                        }
-                    ]
-                    for img_bytes in image_bytes_list:
-                        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-                        data_url = f"data:image/jpeg;base64,{img_b64}"
-                        content_parts.append(
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": data_url},
-                            }
-                        )
-
-                vision_payload = {
-                    "model": OPENROUTER_MODEL,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": "You are a vision model that identifies visible food ingredients from images.",
-                        },
-                        {
-                            "role": "user",
-                            "content": content_parts,
-                        },
-                    ],
-                    "max_tokens": 256,
-                }
-
-                headers = {
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                }
-
-                vision_resp = requests.post(
-                    OPENROUTER_API_URL, headers=headers, data=json.dumps(vision_payload), timeout=40
-                )
-
-                print("OpenRouter vision status:", vision_resp.status_code)
-
-                try:
-                    resp_json = vision_resp.json()
-                except Exception:
-                    print("OpenRouter vision non-JSON response:", vision_resp.text[:500])
-                    resp_json = {}
-
-                if vision_resp.status_code == 200 and "choices" in resp_json:
-                    content = resp_json["choices"][0]["message"]["content"].strip()
-                    for raw in content.replace("\n", ",").split(","):
-                        name = raw.strip(" -•\t")
-                        if name:
-                            extra_ingredients.append(name)
-                    print("OpenRouter vision ingredients:", extra_ingredients)
-                else:
-                    if resp_json or vision_resp.text:
-                        print("OpenRouter vision error body:", resp_json or vision_resp.text[:500])
-        except Exception as vision_err:
-            print("Hybrid OpenRouter vision call failed:", str(vision_err))
-
-        # Final ingredients:
-        #  - If LLM returned anything, use that list.
-        #  - Else in CNN mode, fall back to CNN ingredients.
-        all_ings = []
-        seen = set()
-        if extra_ingredients:
-            source_list = extra_ingredients
-        elif mode == 'cnn':
-            source_list = cnn_ingredients_unique
-        else:
-            source_list = []
-
-        for name in source_list:
-            key = name.lower()
-            if key not in seen:
-                seen.add(key)
-                all_ings.append(name)
+        # Return only CNN (ResNet18) ingredients for search
+        # OpenRouter is reserved for the /adapt endpoint (AI ingredient substitution)
+        all_ings = cnn_ingredients_unique
 
         return jsonify({
             "ingredients": all_ings,
