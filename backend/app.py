@@ -12,6 +12,15 @@ from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import io
 from PIL import Image
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+logger.info("Starting PantryMatch backend...")
 
 from ml_infer_ingredients import load_model, predict_ingredients_from_bytes
 
@@ -248,7 +257,14 @@ def get_auth_user_id():
 init_db()
 
 # -- Load Recipes & TF-IDF Search Setup --
-df = pd.read_csv("data/final_recipes.csv")
+logger.info("Loading recipes dataset (data/final_recipes.csv)...")
+try:
+    df = pd.read_csv("data/final_recipes.csv")
+    logger.info(f"Successfully loaded {len(df)} recipes.")
+except Exception as e:
+    logger.error(f"Failed to load recipes: {e}")
+    # Create an empty dataframe to avoid crashing
+    df = pd.DataFrame(columns=['TranslatedRecipeName', 'processed_ingredients', 'TranslatedInstructions', 'TotalTimeInMins', 'ingredient_synonyms'])
 
 # Optionally enrich recipes with diet & spice classifications
 RECIPE_DIET_MAP = {}
@@ -260,6 +276,7 @@ def _normalize_title_for_lookup(title):
 
 
 try:
+    logger.info("Loading recipe classifications...")
     classifications_df = pd.read_csv("data/recipe_classifications.csv")
     # Keep only the columns we care about and merge by recipe title
     classifications_df = classifications_df[
@@ -301,8 +318,10 @@ df['combined_ingredients'] = df['processed_ingredients'].astype(str) + ' ' + df[
 
 # Use combined ingredients for TF-IDF vectorization
 # This allows matching against both original ingredients and their synonyms
+logger.info("Fitting TF-IDF vectorizer...")
 vectorizer = TfidfVectorizer(stop_words='english')
 tfidf_matrix = vectorizer.fit_transform(df['combined_ingredients'])
+logger.info("TF-IDF vectorization complete.")
 
 
 def _normalize_pref_value(value):

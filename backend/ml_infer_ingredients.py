@@ -25,9 +25,9 @@ import io
 from pathlib import Path
 from typing import List, Dict
 
-import torch
-from PIL import Image
-from torchvision import transforms, models
+# import torch
+# from PIL import Image
+# from torchvision import transforms, models
 
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
@@ -48,6 +48,9 @@ def load_model():
             f"Model file not found at {MODEL_PATH}. Train the model first using "
             "python ml_train_ingredients_model.py"
         )
+
+    import torch
+    from torchvision import models
 
     checkpoint = torch.load(MODEL_PATH, map_location="cpu")
     class_names = checkpoint.get("class_names")
@@ -75,6 +78,8 @@ def _build_transform():
     """
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
+    from torchvision import transforms
+
     return transforms.Compose(
         [
             transforms.Resize((224, 224)),
@@ -97,6 +102,7 @@ def predict_ingredients_from_bytes(
     Returns:
       List of dicts: [{\"name\": ingredient_name, \"prob\": probability}, ...] sorted by prob desc.
     """
+    import torch
     transform = _build_transform()
 
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
