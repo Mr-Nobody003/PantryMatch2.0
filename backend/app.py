@@ -152,8 +152,8 @@ def _generate_yolo_crops(image_bytes: bytes):
             # Sort boxes by confidence to ensure we keep the strongest detections
             boxes.sort(key=lambda b: float(b.conf[0]), reverse=True)
             
-            # Limit to top 3 crops to prevent massive CPU overhead and worker timeouts
-            for idx, box in enumerate(boxes[:3]):
+            # Evaluate ALL boxes without limit as requested by user
+            for idx, box in enumerate(boxes):
                 # Get coordinates (x1, y1, x2, y2)
                 coords = box.xyxy[0].cpu().numpy()
                 x1, y1, x2, y2 = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
@@ -969,15 +969,23 @@ def classify_image():
 
             # 2. PHASE TWO: INFER WITH RESNET
             # YOLO is gone. Only ResNet is alive in memory here.
-            from ml_infer_ingredients import load_model, predict_ingredients_from_bytes
+            from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
             print("Loading ingredient classification model (isolated execution)...")
             model, class_names, device = load_model()
 
             for f, crop_list in all_crops:
-                for crop_name, crop_bytes in crop_list:
-                    preds = predict_ingredients_from_bytes(
-                        model, class_names, device, crop_bytes, top_k=10
-                    )
+                if not crop_list:
+                    continue
+                    
+                crop_names = [c[0] for c in crop_list]
+                crop_bytes_list = [c[1] for c in crop_list]
+                
+                # Run inference in batches to prevent worker timeouts and evaluate all objects quickly
+                batch_preds = predict_ingredients_batch_from_bytes(
+                    model, class_names, device, crop_bytes_list, top_k=10, max_batch_size=8
+                )
+                
+                for crop_name, preds in zip(crop_names, batch_preds):
                     all_preds.append({"filename": f"{f.filename}:{crop_name}", "predictions": preds})
                     for p in preds:
                         if p["prob"] >= threshold:

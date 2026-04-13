@@ -128,3 +128,55 @@ def predict_ingredients_from_bytes(
     return results
 
 
+def predict_ingredients_batch_from_bytes(
+    model,
+    class_names: List[str],
+    device,
+    image_bytes_list: List[bytes],
+    top_k: int = 5,
+    max_batch_size: int = 8
+) -> List[List[Dict[str, float]]]:
+    """
+    Run inference on multiple images using PyTorch batching to speed up processing
+    and avoid worker timeouts on Render.
+    """
+    if not image_bytes_list:
+        return []
+
+    import torch
+    transform = _build_transform()
+    from PIL import Image
+
+    all_results = []
+    
+    # Process in chunks to prevent memory spikes on large numbers of crops
+    for i in range(0, len(image_bytes_list), max_batch_size):
+        chunk_bytes = image_bytes_list[i : i + max_batch_size]
+        tensors = []
+        for img_bytes in chunk_bytes:
+            image = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+            tensors.append(transform(image))
+            
+        batch_tensor = torch.stack(tensors).to(device)  # (N, C, H, W)
+        
+        with torch.no_grad():
+            outputs = model(batch_tensor)
+            probs = torch.softmax(outputs, dim=1).cpu().numpy()
+            
+        top_k_curr = min(top_k, len(class_names))
+        
+        for j in range(len(chunk_bytes)):
+            prob_row = probs[j]
+            indices = prob_row.argsort()[::-1][:top_k_curr]
+            
+            res = []
+            for idx in indices:
+                res.append({
+                    "name": class_names[idx],
+                    "prob": float(prob_row[idx]),
+                })
+            all_results.append(res)
+            
+    return all_results
+
+
