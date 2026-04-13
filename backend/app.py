@@ -87,10 +87,9 @@ def _generate_grid_crops(image_bytes: bytes):
     if min(w, h) < 240:
         return crops
 
-    # Add 2x2 grid with slight overlap to avoid splitting ingredients.
-    # We avoid 3x3 grids here to keep total crops (1 full + 4 grid + 1 center = 6) manageable 
-    # and prevent Render 120s worker timeouts.
-    grids = [(2, 2)]
+    # Add 2x2 and 3x3 grids with slight overlap to avoid splitting ingredients.
+    # With batch inference, we safely evaluate 15 crops without timing out.
+    grids = [(2, 2), (3, 3)]
     overlap = 0.08
 
     for rows, cols in grids:
