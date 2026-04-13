@@ -34,7 +34,7 @@ Two powerful options for detecting ingredients from images:
    - ResNet18 model analyzes each detected crop
    - AI vision API refines the results
    - See CNN-only predictions with confidence scores
-   - **Adaptive cropping strategy**: YOLO detection → Grid crops (fallback) → Center crop
+   - **Comprehensive cropping strategy**: Base Grid crops (2x2, 3x3) + Center crop + YOLO detection for extra precision
 
 2. **Combined Image Mode** (AI Vision + YOLO Cropping):
    - Upload a single image with all your ingredients
@@ -44,8 +44,7 @@ Two powerful options for detecting ingredients from images:
    - Clean ingredient list ready for recipe search
 
 ### 🤖 AI-Powered Features
-- **YOLO-Based Smart Cropping** - YOLOv8n detects food objects and creates intelligent crops around detected regions (with adaptive padding)
-- **Intelligent Fallback System** - Automatically switches to grid-based cropping (2x2, 3x3 grids with 8% overlap) if YOLO detection fails
+- **Combined Smart Cropping** - Generates standard grid crops (2x2, 3x3 grids with 8% overlap) as a baseline, and layers on YOLOv8n object detection to add highly-precise crops for specific food objects (confidence threshold 0.3). This ensures no obscure ingredients are missed while cleanly bounding known ones.
 - **Multi-Crop Analysis** - Processes multiple crops per image: full image, YOLO-detected regions, overlapping grid segments, and center crops
 - **Confidence-Based Filtering** - Filters predictions with confidence threshold (0.35) to avoid false positives
 - **Robust Detection System** - Combines custom-trained ResNet18 model with YOLO object detection for best accuracy
@@ -466,13 +465,12 @@ Authorization: Bearer <token>
 Detect ingredients from uploaded image(s). Supports two modes with **YOLO-based smart cropping**.
 
 **Cropping Strategy:**
-- **YOLO Detection**: Uses YOLOv8n to automatically detect food objects in the image
-- **Smart Crop Generation**:
+- **YOLO Detection**: Uses YOLOv8n to automatically detect food objects in the image with a highly sensitive threshold (0.3)
+- **Smart Crop Generation (Combined Strategy)**:
   1. Full image crop (always included)
-  2. YOLO-detected regions (with 20px adaptive padding)
-  3. Overlapping grid crops (2x2 and 3x3 grids with 8% overlap) - only if minimum size >= 240px
-  4. Center crop (80% of image centered) - helps capture centrally positioned ingredients
-- **Fallback Strategy**: If YOLO detection fails, automatically uses grid cropping
+  2. Overlapping grid crops (2x2 and 3x3 grids with 8% overlap) - protects against obscure ingredients that YOLO doesn't recognize
+  3. Center crop (80% of image centered) - helps capture centrally positioned ingredients
+  4. YOLO-detected regions (with 20px adaptive padding) - layers high-precision crops of specific detected objects on top of the grid crops constraints
 - **Multi-Crop Analysis**: Each crop is analyzed by ResNet18 model separately
 - **Confidence Filtering**: Only predictions with confidence >= 0.35 are included to avoid false positives
 - **Deduplication**: Results are deduplicated by ingredient name

@@ -40,7 +40,7 @@ CORS(app)
 
 # --- Simple Token-Based Auth Setup (SQLite + signed tokens) ---
 DATABASE_PATH = os.path.join("data", "users.db")
-AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or "pantrymatch-dev-secret-key-for-auth"
+AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or "dev-secret-key"
 TOKEN_EXP_SECONDS = 60 * 60 * 24 * 7  # 7 days
 
 serializer = URLSafeTimedSerializer(AUTH_SECRET)
@@ -99,60 +99,43 @@ def _generate_grid_crops(image_bytes: bytes):
 
 def _generate_yolo_crops(image_bytes: bytes):
     """
-    Use YOLO to detect food objects and return crops around detected boxes.
-    Falls back to grid crops if YOLO doesn't find any objects.
+    Use YOLO to detect food objects and return crops around detected boxes,
+    combined with standard grid crops for maximum coverage.
     Returns List[Tuple[str, bytes]] where name is crop label.
     """
     try:
         from ultralytics import YOLO
     except ImportError:
-        # If YOLO not installed, fall back to grid crops
         print("Warning: YOLO not available, falling back to grid crops")
         return _generate_grid_crops(image_bytes)
     
     try:
-        # Load lightweight YOLOv8n model (nano)
         model = YOLO("yolov8n.pt")
-        
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         w, h = img.size
         
-        # Run detection
-        results = model(img, conf=0.6, verbose=False)
+        results = model(img, conf=0.3, verbose=False)
         
-        crops = [("full", image_bytes)]  # Always include full image as fallback
+        # Start with all grid crops so we don't miss anything YOLO doesn't recognize
+        crops = _generate_grid_crops(image_bytes)
         
-        # Extract bounding boxes from detections
         if results and len(results) > 0:
-            detections = results[0]
-            boxes = detections.boxes  # Get all boxes
-            
+            boxes = results[0].boxes
             for idx, box in enumerate(boxes):
-                # Get coordinates (x1, y1, x2, y2)
                 coords = box.xyxy[0].cpu().numpy()
                 x1, y1, x2, y2 = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
                 
-                # Add padding to avoid cutting off edges
                 pad = 20
                 x1 = max(0, x1 - pad)
                 y1 = max(0, y1 - pad)
                 x2 = min(w, x2 + pad)
                 y2 = min(h, y2 + pad)
                 
-                # Minimum crop size
                 if x2 - x1 < 80 or y2 - y1 < 80:
                     continue
                 
-                # Crop and encode
                 crop = img.crop((x1, y1, x2, y2))
-                crop_bytes = _encode_crop_bytes(crop)
-                conf = float(box.conf[0])
-                crops.append((f"yolo_obj_{idx}_conf_{conf:.2f}", crop_bytes))
-        
-        # If no objects detected, fall back to grid crops
-        if len(crops) == 1:  # Only "full" image
-            print("YOLO: No objects detected, using grid crops as backup")
-            return _generate_grid_crops(image_bytes)
+                crops.append((f"yolo_obj_{idx}_conf_{float(box.conf[0]):.2f}", _encode_crop_bytes(crop)))
         
         return crops
         
