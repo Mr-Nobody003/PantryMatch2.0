@@ -842,6 +842,14 @@ def get_youtube_videos():
 
 # -- 4. Image Ingredient Classification Endpoint (ResNet18) --
 
+from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
+print("Pre-loading ingredient classification model globally...")
+try:
+    ING_MODEL, ING_CLASSES, ING_DEVICE = load_model()
+except Exception as e:
+    print(f"Warning: Failed to load global ResNet model: {e}")
+    ING_MODEL, ING_CLASSES, ING_DEVICE = None, [], None
+
 @app.route('/classify-image', methods=['POST'])
 def classify_image():
     """
@@ -890,16 +898,7 @@ def classify_image():
                 crop_list = _generate_grid_crops(img_bytes)
                 all_crops.append((f, crop_list))
 
-            # Strictly isolate memory: force GC before calling ResNet
-            import gc
-            gc.collect()
-
-            # 2. LOAD RESNET (Only ResNet is in memory)
-            from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
-            print("Loading ingredient classification model (isolated execution)...")
-            model, class_names, device = load_model()
-
-            # 3. RUN FAST RESNET INFERENCE IN BATCHES
+            # 2. RUN FAST RESNET INFERENCE IN BATCHES
             for f, crop_list in all_crops:
                 if not crop_list:
                     continue
@@ -909,7 +908,7 @@ def classify_image():
                 
                 # Evaluate in batches of 8 to speed up PyTorch inference drastically and avoid timeout
                 batch_preds = predict_ingredients_batch_from_bytes(
-                    model, class_names, device, crop_bytes_list, top_k=10, max_batch_size=8
+                    ING_MODEL, ING_CLASSES, ING_DEVICE, crop_bytes_list, top_k=10, max_batch_size=8
                 )
                 
                 for crop_name, preds in zip(crop_names, batch_preds):
@@ -917,10 +916,6 @@ def classify_image():
                     for p in preds:
                         if p["prob"] >= threshold:
                             cnn_ingredients.append(p["name"])
-            
-            # Destroy ResNet model completely to free RAM for subsequent API calls
-            del model
-            gc.collect()
 
             # Deduplicate CNN ingredients
             seen_cnn = set()
