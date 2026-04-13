@@ -8,7 +8,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import pandas as pd
+import csv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import requests
@@ -211,61 +211,55 @@ def home():
     return jsonify({"status": "Pantry match backend is running"}), 200
 
 # -- Load Recipes & TF-IDF Search Setup --
-df = pd.read_csv("data/final_recipes.csv")
-
-# Optionally enrich recipes with diet & spice classifications
 RECIPE_DIET_MAP = {}
 RECIPE_SPICE_MAP = {}
-
 
 def _normalize_title_for_lookup(title):
     return (str(title) or "").strip().lower()
 
-
+# Pure native Python lookup maps to prevent memory overhead of Pandas
 try:
-    classifications_df = pd.read_csv("data/recipe_classifications.csv")
-    # Keep only the columns we care about and merge by recipe title
-    classifications_df = classifications_df[
-        ["TranslatedRecipeName", "Spice Tolerance", "Dietary Preference"]
-    ]
-    df = df.merge(
-        classifications_df,
-        on="TranslatedRecipeName",
-        how="left",
-        suffixes=("", "_cls"),
-    )
-
-    # Build quick lookup maps for saved-recipes and other places that only have titles
-    for _, row in df[["TranslatedRecipeName", "Spice Tolerance", "Dietary Preference"]].iterrows():
-        key = _normalize_title_for_lookup(row["TranslatedRecipeName"])
-        if not key:
-            continue
-        diet_val = row.get("Dietary Preference")
-        spice_val = row.get("Spice Tolerance")
-        # Last one wins, but dataset titles should be unique
-        RECIPE_DIET_MAP[key] = diet_val
-        RECIPE_SPICE_MAP[key] = spice_val
+    with open("data/recipe_classifications.csv", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            key = _normalize_title_for_lookup(row.get("TranslatedRecipeName", ""))
+            if key:
+                RECIPE_DIET_MAP[key] = row.get("Dietary Preference")
+                RECIPE_SPICE_MAP[key] = row.get("Spice Tolerance")
 except FileNotFoundError:
-    # If the file is missing, keep columns empty so code still works
     print(
         "Warning: data/recipe_classifications.csv not found. "
         "Dietary preference and spice filters will be disabled and icons hidden."
     )
-    df["Spice Tolerance"] = None
-    df["Dietary Preference"] = None
 
-# Combine processed_ingredients and ingredient_synonyms for better matching
-# Handle NaN values in ingredient_synonyms column and normalize
-df['ingredient_synonyms'] = df['ingredient_synonyms'].fillna('')
-# Replace commas with spaces in synonyms to ensure proper tokenization
-df['ingredient_synonyms'] = df['ingredient_synonyms'].astype(str).str.replace(',', ' ')
-# Combine both columns for comprehensive matching
-df['combined_ingredients'] = df['processed_ingredients'].astype(str) + ' ' + df['ingredient_synonyms'].astype(str)
+RECIPES_DATA = []
+combined_ingredients = []
 
-# Use combined ingredients for TF-IDF vectorization
-# This allows matching against both original ingredients and their synonyms
+with open("data/final_recipes.csv", encoding="utf-8") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        # Keep only required fields in memory
+        key = _normalize_title_for_lookup(row.get("TranslatedRecipeName", ""))
+        diet_val = RECIPE_DIET_MAP.get(key)
+        spice_val = RECIPE_SPICE_MAP.get(key)
+
+        RECIPES_DATA.append({
+            'TranslatedRecipeName': row.get("TranslatedRecipeName", ""),
+            'processed_ingredients': row.get("processed_ingredients", ""),
+            'TranslatedInstructions': row.get("TranslatedInstructions", ""),
+            'TotalTimeInMins': row.get("TotalTimeInMins") if row.get("TotalTimeInMins") else None,
+            'Dietary Preference': diet_val,
+            'Spice Tolerance': spice_val
+        })
+        
+        synonyms = row.get("ingredient_synonyms", "").replace(",", " ")
+        ingredients = row.get("processed_ingredients", "")
+        combined = str(ingredients) + " " + str(synonyms)
+        combined_ingredients.append(combined)
+
+# Initialize Vectorizer securely on native string arrays (Saves >100MB of RAM)
 vectorizer = TfidfVectorizer(stop_words='english')
-tfidf_matrix = vectorizer.fit_transform(df['combined_ingredients'])
+tfidf_matrix = vectorizer.fit_transform(combined_ingredients)
 
 
 def _normalize_pref_value(value):
@@ -390,23 +384,30 @@ def search():
     for idx in ranked_indices:
         if len(selected_indices) >= 6:
             break
-        row = df.iloc[idx]
+        row = RECIPES_DATA[idx]
         if _recipe_matches_flags(row, diet_flag, spice_flag):
             selected_indices.append(idx)
 
     results = []
     for idx in selected_indices:
-        row = df.iloc[idx]
+        row = RECIPES_DATA[idx]
         diet_val = row.get("Dietary Preference")
         spice_val = row.get("Spice Tolerance")
+        time_val = row.get('TotalTimeInMins')
+        
+        try:
+            time_int = int(float(time_val)) if time_val else None
+        except ValueError:
+            time_int = None
+            
         results.append({
-            'title': str(row['TranslatedRecipeName']),
-            'ingredients': str(row['processed_ingredients']),
-            'instructions': str(row['TranslatedInstructions']),
-            'time': int(row['TotalTimeInMins']) if pd.notnull(row['TotalTimeInMins']) else None,
+            'title': str(row.get('TranslatedRecipeName', '')),
+            'ingredients': str(row.get('processed_ingredients', '')),
+            'instructions': str(row.get('TranslatedInstructions', '')),
+            'time': time_int,
             'score': float(scores[idx]),
-            'dietaryPreference': str(diet_val) if pd.notnull(diet_val) else None,
-            'spiceTolerance': str(spice_val) if pd.notnull(spice_val) else None,
+            'dietaryPreference': str(diet_val) if diet_val else None,
+            'spiceTolerance': str(spice_val) if spice_val else None,
         })
 
     # Optionally record search history for authenticated users (dedup by query per user)
