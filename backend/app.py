@@ -36,7 +36,12 @@ except ImportError:
         print("Warning: API keys not found. Please create config.py or set environment variables.")
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS based on environment
+if os.environ.get('FLASK_ENV') == 'production':
+    CORS(app, origins=["https://pantry-match-delta.vercel.app"])
+else:
+    CORS(app)
 
 # --- Simple Token-Based Auth Setup (SQLite + signed tokens) ---
 DATABASE_PATH = os.path.join("data", "users.db")
@@ -391,7 +396,7 @@ def _recipe_matches_flags(row, diet_flag, spice_flag):
 # -- Root Endpoint --
 @app.route('/', methods=['GET'])
 def home():
-    return jsonify({"message": "Pantry match backend is running"}), 200
+    return "Pantry match backend is running", 200
 
 
 # -- 1. Recipe Search Endpoint --
