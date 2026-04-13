@@ -87,8 +87,10 @@ def _generate_grid_crops(image_bytes: bytes):
     if min(w, h) < 240:
         return crops
 
-    # Add 2x2 and 3x3 crops with slight overlap to avoid splitting ingredients.
-    grids = [(2, 2), (3, 3)]
+    # Add 2x2 grid with slight overlap to avoid splitting ingredients.
+    # We avoid 3x3 grids here to keep total crops (1 full + 4 grid + 1 center = 6) manageable 
+    # and prevent Render 120s worker timeouts.
+    grids = [(2, 2)]
     overlap = 0.08
 
     for rows, cols in grids:
@@ -160,9 +162,13 @@ def _generate_yolo_crops(image_bytes: bytes):
         # Extract bounding boxes from detections
         if results and len(results) > 0:
             detections = results[0]
-            boxes = detections.boxes  # Get all boxes
+            boxes = list(detections.boxes)  # Get all boxes
             
-            for idx, box in enumerate(boxes):
+            # Sort boxes by confidence to ensure we keep the strongest detections
+            boxes.sort(key=lambda b: float(b.conf[0]), reverse=True)
+            
+            # Limit to top 3 crops to prevent massive CPU overhead and worker timeouts
+            for idx, box in enumerate(boxes[:3]):
                 # Get coordinates (x1, y1, x2, y2)
                 coords = box.xyxy[0].cpu().numpy()
                 x1, y1, x2, y2 = int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])
