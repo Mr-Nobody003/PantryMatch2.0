@@ -1,4 +1,5 @@
 import os
+# Constrain threads to prevent memory spikes in single-core Render environments
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -12,24 +13,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import requests
 import json
-import os
 import base64
 import sqlite3
 from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import io
 from PIL import Image
-import logging
+import gc
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-logger.info("Starting PantryMatch backend...")
-
-from ml_infer_ingredients import load_model, predict_ingredients_from_bytes
+from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
 
 # -- Import API Keys from config --
 try:
@@ -52,16 +44,12 @@ except ImportError:
         print("Warning: API keys not found. Please create config.py or set environment variables.")
 
 app = Flask(__name__)
-
-# Configure CORS based on environment
-if os.environ.get('FLASK_ENV') == 'production':
-    CORS(app, origins=["https://pantry-match-delta.vercel.app"])
-else:
-    CORS(app)
+# Enable permissive CORS as requested by origin main
+CORS(app)
 
 # --- Simple Token-Based Auth Setup (SQLite + signed tokens) ---
 DATABASE_PATH = os.path.join("data", "users.db")
-AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or "pantrymatch-dev-secret-key-for-auth"
+AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or "dev-secret-key"
 TOKEN_EXP_SECONDS = 60 * 60 * 24 * 7  # 7 days
 
 serializer = URLSafeTimedSerializer(AUTH_SECRET)
@@ -87,8 +75,7 @@ def _generate_grid_crops(image_bytes: bytes):
     if min(w, h) < 240:
         return crops
 
-    # Add 2x2 and 3x3 grids with slight overlap to avoid splitting ingredients.
-    # With batch inference, we safely evaluate 15 crops without timing out.
+    # Add 2x2 and 3x3 crops with slight overlap to avoid splitting ingredients.
     grids = [(2, 2), (3, 3)]
     overlap = 0.08
 
@@ -201,14 +188,7 @@ def get_auth_user_id():
 init_db()
 
 # -- Load Recipes & TF-IDF Search Setup --
-logger.info("Loading recipes dataset (data/final_recipes.csv)...")
-try:
-    df = pd.read_csv("data/final_recipes.csv")
-    logger.info(f"Successfully loaded {len(df)} recipes.")
-except Exception as e:
-    logger.error(f"Failed to load recipes: {e}")
-    # Create an empty dataframe to avoid crashing
-    df = pd.DataFrame(columns=['TranslatedRecipeName', 'processed_ingredients', 'TranslatedInstructions', 'TotalTimeInMins', 'ingredient_synonyms'])
+df = pd.read_csv("data/final_recipes.csv")
 
 # Optionally enrich recipes with diet & spice classifications
 RECIPE_DIET_MAP = {}
@@ -220,7 +200,6 @@ def _normalize_title_for_lookup(title):
 
 
 try:
-    logger.info("Loading recipe classifications...")
     classifications_df = pd.read_csv("data/recipe_classifications.csv")
     # Keep only the columns we care about and merge by recipe title
     classifications_df = classifications_df[
@@ -262,10 +241,8 @@ df['combined_ingredients'] = df['processed_ingredients'].astype(str) + ' ' + df[
 
 # Use combined ingredients for TF-IDF vectorization
 # This allows matching against both original ingredients and their synonyms
-logger.info("Fitting TF-IDF vectorizer...")
 vectorizer = TfidfVectorizer(stop_words='english')
 tfidf_matrix = vectorizer.fit_transform(df['combined_ingredients'])
-logger.info("TF-IDF vectorization complete.")
 
 
 def _normalize_pref_value(value):
@@ -354,12 +331,6 @@ def _recipe_matches_flags(row, diet_flag, spice_flag):
                 return False
 
     return True
-
-
-# -- Root Endpoint --
-@app.route('/', methods=['GET'])
-def home():
-    return "Pantry match backend is running", 200
 
 
 # -- 1. Recipe Search Endpoint --
@@ -842,13 +813,13 @@ def get_youtube_videos():
 
 # -- 4. Image Ingredient Classification Endpoint (ResNet18) --
 
-from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
-print("Pre-loading ingredient classification model globally...")
+# Load globally once to prevent high-memory load cost on every request
+ING_MODEL, ING_CLASSES, ING_DEVICE = None, None, None
 try:
+    print("Loading ingredient classification model globally...")
     ING_MODEL, ING_CLASSES, ING_DEVICE = load_model()
 except Exception as e:
-    print(f"Warning: Failed to load global ResNet model: {e}")
-    ING_MODEL, ING_CLASSES, ING_DEVICE = None, [], None
+    print(f"Warning: Failed to load ingredient model globally. Error: {e}")
 
 @app.route('/classify-image', methods=['POST'])
 def classify_image():
@@ -888,27 +859,30 @@ def classify_image():
 
         # -------- Mode: CNN (multi images, ResNet + optional LLM) --------
         if mode == 'cnn':
+            if ING_MODEL is None:
+                return jsonify({"error": "Ingredient model not loaded"}), 500
+
             threshold = 0.35  # lower threshold for crop-based detection
+
             cnn_ingredients = []
 
-            # 1. GENERATE GRID CROPS
-            # We strictly use Grid Crops because it is faster and detects 100% of items without YOLO overhead
+            # 1. PROCESS GRID CROPS ONLY - DO NOT USE YOLO FOR EFFICIENCY/SPEED
             all_crops = []
             for f, img_bytes in zip(files, image_bytes_list):
                 crop_list = _generate_grid_crops(img_bytes)
                 all_crops.append((f, crop_list))
-
-            # 2. RUN FAST RESNET INFERENCE IN BATCHES
+            
+            # 2. RUN INFERENCE IN BATCHES
             for f, crop_list in all_crops:
                 if not crop_list:
                     continue
                 
                 crop_names = [c[0] for c in crop_list]
-                crop_bytes_list = [c[1] for c in crop_list]
+                crop_bytes = [c[1] for c in crop_list]
                 
-                # Evaluate in batches of 8 to speed up PyTorch inference drastically and avoid timeout
+                # Use batched prediction to process multiple crops significantly faster
                 batch_preds = predict_ingredients_batch_from_bytes(
-                    ING_MODEL, ING_CLASSES, ING_DEVICE, crop_bytes_list, top_k=10, max_batch_size=8
+                    ING_MODEL, ING_CLASSES, ING_DEVICE, crop_bytes, top_k=10, max_batch_size=8
                 )
                 
                 for crop_name, preds in zip(crop_names, batch_preds):
@@ -941,7 +915,7 @@ def classify_image():
         print("Error in /classify-image:", str(e))
         return jsonify({"error": "Failed to classify image", "details": str(e)}), 500
     finally:
-        import gc
+        # Force garbage collection to free memory on the Render server immediately
         gc.collect()
 
 
