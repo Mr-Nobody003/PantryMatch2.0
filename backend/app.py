@@ -44,8 +44,21 @@ except ImportError:
         print("Warning: API keys not found. Please create config.py or set environment variables.")
 
 app = Flask(__name__)
-# Enable permissive CORS as requested by origin main
-CORS(app)
+# Explicit CORS config for the frontend to prevent preflight blocking and credential issues
+CORS(
+    app,
+    supports_credentials=True,
+    resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://pantry-match-delta.vercel.app",
+                "https://pantrymatch2-0.onrender.com"
+            ]
+        }
+    }
+)
 
 # --- Simple Token-Based Auth Setup (SQLite + signed tokens) ---
 DATABASE_PATH = os.path.join("data", "users.db")
@@ -67,9 +80,13 @@ def _generate_grid_crops(image_bytes: bytes):
     Returns List[Tuple[str, bytes]] where name is crop label.
     """
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    
+    # [CRITICAL OPTIMIZATION]: Downscale heavily to prevent OOM memory spikes and Render crashes 
+    # on multi-image uploads (typical phone images are 12+ Megapixels taking ~36MB RAM per image).
+    img.thumbnail((800, 800))
     w, h = img.size
 
-    crops = [("full", image_bytes)]
+    crops = [("full", _encode_crop_bytes(img))]
 
     # If the image is too small, skip cropping
     if min(w, h) < 240:
