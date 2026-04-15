@@ -21,7 +21,7 @@ import io
 from PIL import Image
 import gc
 
-from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes
+from ml_infer_ingredients import load_model, predict_ingredients_batch_from_bytes, predict_ingredients_from_bytes
 
 # -- Import API Keys from config --
 try:
@@ -120,6 +120,47 @@ def _generate_grid_crops(image_bytes: bytes):
     if cx1 - cx0 >= 160 and cy1 - cy0 >= 160:
         crops.append(("center_80", _encode_crop_bytes(img.crop((cx0, cy0, cx1, cy1)))))
 
+    return crops
+
+
+def _generate_yolo_crops(image_bytes: bytes):
+    """
+    Use YOLO (via ONNX) to detect food objects and return crops around detected boxes,
+    combined with standard grid crops for maximum coverage.
+    Returns List[Tuple[str, bytes]] where name is crop label.
+    """
+    # Start with all grid crops so we don't miss anything YOLO doesn't recognize
+    crops = _generate_grid_crops(image_bytes)
+    
+    try:
+        from ml_infer_ingredients import predict_boxes_onnx
+        boxes = predict_boxes_onnx(image_bytes)
+        
+        if boxes:
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            # Same thumbnailing as in _generate_grid_crops for consistency
+            img.thumbnail((800, 800))
+            w_orig, h_orig = Image.open(io.BytesIO(image_bytes)).size
+            scale_w = img.size[0] / w_orig
+            scale_h = img.size[1] / h_orig
+            
+            for idx, (x1, y1, x2, y2) in enumerate(boxes):
+                # Scale boxes to thumbnailed image size
+                x1, y1, x2, y2 = int(x1*scale_w), int(y1*scale_h), int(x2*scale_w), int(y2*scale_h)
+                
+                # Add padding
+                pad = 20
+                x1 = max(0, x1 - pad)
+                y1 = max(0, y1 - pad)
+                x2 = min(img.size[0], x2 + pad)
+                y2 = min(img.size[1], y2 + pad)
+                
+                if x2 - x1 >= 60 and y2 - y1 >= 60:
+                    crop = img.crop((x1, y1, x2, y2))
+                    crops.append((f"yolo_box_{idx}", _encode_crop_bytes(crop)))
+    except Exception as e:
+        print(f"Warning: YOLO cropping failed: {e}")
+        
     return crops
 
 
@@ -890,10 +931,10 @@ def classify_image():
 
             cnn_ingredients = []
 
-            # 1. PROCESS GRID CROPS ONLY - DO NOT USE YOLO FOR EFFICIENCY/SPEED
+            # 1. PROCESS HYBRID CROPS (YOLO + GRIDS)
             all_crops = []
             for f, img_bytes in zip(files, image_bytes_list):
-                crop_list = _generate_grid_crops(img_bytes)
+                crop_list = _generate_yolo_crops(img_bytes)
                 all_crops.append((f, crop_list))
             
             # 2. RUN INFERENCE IN BATCHES
