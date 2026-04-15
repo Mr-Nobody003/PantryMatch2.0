@@ -1,0 +1,41 @@
+
+ENHANCED 5-FOLD CROSS-VALIDATION REPORT
+==========================================
+
+OVERALL RESULTS:
+  Mean Validation Accuracy: 0.8640 ± 0.0133
+  Mean F1-Score: 0.8629 ± 0.0129
+  Best Fold: 1 (Acc: 0.8899, F1: 0.8881)
+  Worst Fold: 5 (Acc: 0.8529)
+
+PER-FOLD RESULTS:
+
+Fold 1:
+  Best Val Acc: 0.8899
+  Best F1-Score: 0.8881
+  Best Precision: 0.8940
+  Best Recall: 0.8899
+
+Fold 2:
+  Best Val Acc: 0.8567
+  Best F1-Score: 0.8559
+  Best Precision: 0.8644
+  Best Recall: 0.8567
+
+Fold 3:
+  Best Val Acc: 0.8582
+  Best F1-Score: 0.8567
+  Best Precision: 0.8640
+  Best Recall: 0.8582
+
+Fold 4:
+  Best Val Acc: 0.8620
+  Best F1-Score: 0.8609
+  Best Precision: 0.8689
+  Best Recall: 0.8620
+
+Fold 5:
+  Best Val Acc: 0.8529
+  Best F1-Score: 0.8528
+  Best Precision: 0.8621
+  Best Recall: 0.8529

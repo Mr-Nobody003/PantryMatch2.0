@@ -31,7 +31,7 @@ from torchvision import transforms, models
 
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
-MODEL_PATH = MODELS_DIR / "ingredients_resnet18.pt"
+MODEL_PATH = MODELS_DIR / "best_enhanced_5fold_model.pt"
 
 
 def load_model():
@@ -119,5 +119,3 @@ def predict_ingredients_from_bytes(
             }
         )
     return results
-
-
