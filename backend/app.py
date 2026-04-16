@@ -155,7 +155,7 @@ def _generate_yolo_crops(image_bytes: bytes):
                 x2 = min(img.size[0], x2 + pad)
                 y2 = min(img.size[1], y2 + pad)
                 
-                if x2 - x1 >= 60 and y2 - y1 >= 60:
+                if x2 - x1 >= 80 and y2 - y1 >= 80:
                     crop = img.crop((x1, y1, x2, y2))
                     crops.append((f"yolo_box_{idx}", _encode_crop_bytes(crop)))
     except Exception as e:

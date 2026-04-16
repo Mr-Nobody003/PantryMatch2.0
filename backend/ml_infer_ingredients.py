@@ -111,7 +111,7 @@ def predict_ingredients_from_bytes(model, class_names, device, image_bytes, top_
     res = predict_ingredients_batch_from_bytes(model, class_names, device, [image_bytes], top_k=top_k)
     return res[0] if res else []
 
-def predict_boxes_onnx(image_bytes: bytes, conf_thres=0.4) -> List[Tuple[int, int, int, int]]:
+def predict_boxes_onnx(image_bytes: bytes, conf_thres=0.6) -> List[Tuple[int, int, int, int]]:
     """
     Lightweight YOLOv8 detection via ONNX Runtime.
     Returns list of [x1, y1, x2, y2] bounding boxes.
