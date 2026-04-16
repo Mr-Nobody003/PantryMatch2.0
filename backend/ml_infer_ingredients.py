@@ -27,7 +27,7 @@ except ImportError:
     ort = None
 
 MODELS_DIR = Path(__file__).resolve().parent / "models"
-MODEL_PATH = MODELS_DIR / "ingredients_resnet18.onnx"
+MODEL_PATH = MODELS_DIR / "best_enhanced_5fold_model.onnx"
 YOLO_PATH = MODELS_DIR / "yolov8n.onnx"
 CLASSES_PATH = MODELS_DIR / "class_names.json"
 
