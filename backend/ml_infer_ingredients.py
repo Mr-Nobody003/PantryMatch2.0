@@ -106,16 +106,26 @@ def predict_ingredients_from_bytes(
         outputs = model(tensor)
         probs = torch.softmax(outputs, dim=1).cpu().numpy()[0]
 
-    # Get top_k predictions
-    top_k = min(top_k, len(class_names))
-    indices = probs.argsort()[::-1][:top_k]
+    # Fetch slightly more to accommodate potential filtering
+    fetch_k = min(top_k + 1, len(class_names))
+    indices = probs.argsort()[::-1][:fetch_k]
 
     results: List[Dict[str, float]] = []
     for idx in indices:
+        name = class_names[idx]
+        
+        # Discard "Sweetpotato" as it appears frequently and degrades results
+        if "sweetpotato" in name.lower().replace(" ", ""):
+            continue
+            
         results.append(
             {
-                "name": class_names[idx],
+                "name": name,
                 "prob": float(probs[idx]),
             }
         )
+        
+        if len(results) == top_k:
+            break
+            
     return results
