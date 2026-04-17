@@ -1,0 +1,10 @@
+.env
+.env.local
+.python-version
+__pycache__
+venv/
+.venv/
+*.pt
+models/*.pt
+models/ingredients_resnet18.onnx
+data/users.db

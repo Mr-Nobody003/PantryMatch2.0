@@ -18,6 +18,8 @@ import sqlite3
 from datetime import datetime
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import io
+import pymongo
+from bson.objectid import ObjectId
 from PIL import Image
 import gc
 
@@ -64,6 +66,14 @@ CORS(
 DATABASE_PATH = os.path.join("data", "users.db")
 AUTH_SECRET = os.getenv("AUTH_SECRET_KEY") or "dev-secret-key"
 TOKEN_EXP_SECONDS = 60 * 60 * 24 * 7  # 7 days
+
+MONGO_URI = os.getenv("MONGO_URI")
+if MONGO_URI:
+    mongo_client = pymongo.MongoClient(MONGO_URI)
+    mongo_db = mongo_client.get_default_database(default="pantrymatch")
+else:
+    mongo_client = None
+    mongo_db = None
 
 serializer = URLSafeTimedSerializer(AUTH_SECRET)
 
@@ -172,6 +182,10 @@ def get_db_connection():
 
 
 def init_db():
+    if mongo_db is not None:
+        mongo_db.users.create_index("email", unique=True)
+        return
+        
     conn = get_db_connection()
     cur = conn.cursor()
     # Users table
@@ -404,17 +418,21 @@ def search():
     spice_flag = None
     if user_id:
         try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT preferences FROM users WHERE id = ?", (user_id,))
-            row = cur.fetchone()
-            conn.close()
-            prefs = {}
-            if row and row["preferences"]:
-                try:
-                    prefs = json.loads(row["preferences"]) or {}
-                except Exception:
-                    prefs = {}
+            if mongo_db is not None:
+                doc = mongo_db.users.find_one({"_id": ObjectId(user_id) if len(str(user_id)) == 24 else user_id})
+                prefs = doc.get("preferences", {}) if doc else {}
+            else:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT preferences FROM users WHERE id = ?", (user_id,))
+                row = cur.fetchone()
+                conn.close()
+                prefs = {}
+                if row and row["preferences"]:
+                    try:
+                        prefs = json.loads(row["preferences"]) or {}
+                    except Exception:
+                        prefs = {}
             diet_flag, spice_flag = _extract_user_preference_flags(prefs)
         except Exception as e:
             print("Failed to load user preferences:", str(e))
@@ -455,18 +473,27 @@ def search():
     if user_id and user_query.strip():
         try:
             normalized = " ".join(user_query.strip().split()).lower()
-            conn = get_db_connection()
-            # Remove older duplicates so the list stays unique
-            conn.execute(
-                "DELETE FROM search_history WHERE user_id = ? AND lower(trim(query)) = ?",
-                (user_id, normalized),
-            )
-            conn.execute(
-                "INSERT INTO search_history (user_id, query, created_at) VALUES (?, ?, ?)",
-                (user_id, user_query.strip(), datetime.utcnow().isoformat()),
-            )
-            conn.commit()
-            conn.close()
+            if mongo_db is not None:
+                mongo_db.search_history.delete_many({"user_id": user_id, "normalized_query": normalized})
+                mongo_db.search_history.insert_one({
+                    "user_id": user_id,
+                    "query": user_query.strip(),
+                    "normalized_query": normalized,
+                    "created_at": datetime.utcnow().isoformat()
+                })
+            else:
+                conn = get_db_connection()
+                # Remove older duplicates so the list stays unique
+                conn.execute(
+                    "DELETE FROM search_history WHERE user_id = ? AND lower(trim(query)) = ?",
+                    (user_id, normalized),
+                )
+                conn.execute(
+                    "INSERT INTO search_history (user_id, query, created_at) VALUES (?, ?, ?)",
+                    (user_id, user_query.strip(), datetime.utcnow().isoformat()),
+                )
+                conn.commit()
+                conn.close()
         except Exception as e:
             print("Failed to record search history:", str(e))
 
@@ -494,35 +521,59 @@ def signup():
     salt = AUTH_SECRET.encode("utf-8")
     pwd_hash = hashlib.sha256(salt + password.encode("utf-8")).hexdigest()
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """
-            INSERT INTO users (name, email, password_hash, created_at, preferences)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (name, email, pwd_hash, datetime.utcnow().isoformat(), json.dumps({"diet": "none"})),
-        )
-        conn.commit()
-        user_id = cur.lastrowid
-    except sqlite3.IntegrityError:
+    if mongo_db is not None:
+        try:
+            now = datetime.utcnow().isoformat()
+            doc = {
+                "name": name,
+                "email": email,
+                "password_hash": pwd_hash,
+                "created_at": now,
+                "preferences": {"diet": "none"}
+            }
+            mongo_db.users.insert_one(doc)
+            user_id = str(doc["_id"])
+            profile = {
+                "id": user_id,
+                "name": name,
+                "email": email,
+                "created_at": now,
+                "preferences": {"diet": "none"}
+            }
+            token = generate_token(user_id)
+            return jsonify({"token": token, "user": profile}), 201
+        except pymongo.errors.DuplicateKeyError:
+            return jsonify({"error": "An account with this email already exists"}), 400
+    else:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO users (name, email, password_hash, created_at, preferences)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (name, email, pwd_hash, datetime.utcnow().isoformat(), json.dumps({"diet": "none"})),
+            )
+            conn.commit()
+            user_id = cur.lastrowid
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({"error": "An account with this email already exists"}), 400
+
+        cur.execute("SELECT id, name, email, created_at, preferences FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
         conn.close()
-        return jsonify({"error": "An account with this email already exists"}), 400
 
-    cur.execute("SELECT id, name, email, created_at, preferences FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
-    conn.close()
-
-    token = generate_token(user_id)
-    profile = {
-        "id": row["id"],
-        "name": row["name"],
-        "email": row["email"],
-        "created_at": row["created_at"],
-        "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
-    }
-    return jsonify({"token": token, "user": profile}), 201
+        token = generate_token(user_id)
+        profile = {
+            "id": row["id"],
+            "name": row["name"],
+            "email": row["email"],
+            "created_at": row["created_at"],
+            "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
+        }
+        return jsonify({"token": token, "user": profile}), 201
 
 
 @app.route('/auth/login', methods=['POST'])
@@ -539,27 +590,43 @@ def login():
     salt = AUTH_SECRET.encode("utf-8")
     pwd_hash = hashlib.sha256(salt + password.encode("utf-8")).hexdigest()
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, name, email, password_hash, created_at, preferences FROM users WHERE email = ?",
-        (email,),
-    )
-    row = cur.fetchone()
-    conn.close()
+    if mongo_db is not None:
+        doc = mongo_db.users.find_one({"email": email})
+        if not doc or doc.get("password_hash") != pwd_hash:
+            return jsonify({"error": "Invalid email or password"}), 401
+            
+        user_id = str(doc["_id"])
+        token = generate_token(user_id)
+        profile = {
+            "id": user_id,
+            "name": doc.get("name"),
+            "email": doc.get("email"),
+            "created_at": doc.get("created_at"),
+            "preferences": doc.get("preferences", {})
+        }
+        return jsonify({"token": token, "user": profile}), 200
+    else:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, name, email, password_hash, created_at, preferences FROM users WHERE email = ?",
+            (email,),
+        )
+        row = cur.fetchone()
+        conn.close()
 
-    if not row or row["password_hash"] != pwd_hash:
-        return jsonify({"error": "Invalid email or password"}), 401
+        if not row or row["password_hash"] != pwd_hash:
+            return jsonify({"error": "Invalid email or password"}), 401
 
-    token = generate_token(row["id"])
-    profile = {
-        "id": row["id"],
-        "name": row["name"],
-        "email": row["email"],
-        "created_at": row["created_at"],
-        "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
-    }
-    return jsonify({"token": token, "user": profile}), 200
+        token = generate_token(row["id"])
+        profile = {
+            "id": row["id"],
+            "name": row["name"],
+            "email": row["email"],
+            "created_at": row["created_at"],
+            "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
+        }
+        return jsonify({"token": token, "user": profile}), 200
 
 
 @app.route('/auth/me', methods=['GET'])
@@ -568,26 +635,39 @@ def me():
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, name, email, created_at, preferences FROM users WHERE id = ?",
-        (user_id,),
-    )
-    row = cur.fetchone()
-    conn.close()
+    if mongo_db is not None:
+        doc = mongo_db.users.find_one({"_id": ObjectId(user_id) if len(str(user_id)) == 24 else user_id})
+        if not doc:
+            return jsonify({"error": "User not found"}), 404
+        profile = {
+            "id": str(doc["_id"]),
+            "name": doc.get("name"),
+            "email": doc.get("email"),
+            "created_at": doc.get("created_at"),
+            "preferences": doc.get("preferences", {})
+        }
+        return jsonify({"user": profile}), 200
+    else:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, name, email, created_at, preferences FROM users WHERE id = ?",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        conn.close()
 
-    if not row:
-        return jsonify({"error": "User not found"}), 404
+        if not row:
+            return jsonify({"error": "User not found"}), 404
 
-    profile = {
-        "id": row["id"],
-        "name": row["name"],
-        "email": row["email"],
-        "created_at": row["created_at"],
-        "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
-    }
-    return jsonify({"user": profile}), 200
+        profile = {
+            "id": row["id"],
+            "name": row["name"],
+            "email": row["email"],
+            "created_at": row["created_at"],
+            "preferences": json.loads(row["preferences"]) if row["preferences"] else {},
+        }
+        return jsonify({"user": profile}), 200
 
 
 @app.route('/user/preferences', methods=['POST'])
@@ -599,13 +679,19 @@ def update_preferences():
     data = request.get_json() or {}
     preferences = data.get("preferences") or {}
 
-    conn = get_db_connection()
-    conn.execute(
-        "UPDATE users SET preferences = ? WHERE id = ?",
-        (json.dumps(preferences), user_id),
-    )
-    conn.commit()
-    conn.close()
+    if mongo_db is not None:
+        mongo_db.users.update_one(
+            {"_id": ObjectId(user_id) if len(str(user_id)) == 24 else user_id},
+            {"$set": {"preferences": preferences}}
+        )
+    else:
+        conn = get_db_connection()
+        conn.execute(
+            "UPDATE users SET preferences = ? WHERE id = ?",
+            (json.dumps(preferences), user_id),
+        )
+        conn.commit()
+        conn.close()
 
     return jsonify({"success": True, "preferences": preferences}), 200
 
@@ -615,6 +701,72 @@ def saved_recipes():
     user_id = get_auth_user_id()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
+
+    if mongo_db is not None:
+        if request.method == 'GET':
+            cursor = mongo_db.saved_recipes.find({"user_id": user_id}).sort("created_at", pymongo.DESCENDING)
+            seen_titles = set()
+            recipes = []
+            for r in cursor:
+                key = (r.get("title") or "").strip().lower()
+                if not key or key in seen_titles:
+                    continue
+                seen_titles.add(key)
+                diet_val = RECIPE_DIET_MAP.get(key)
+                spice_val = RECIPE_SPICE_MAP.get(key)
+                recipes.append({
+                    "id": str(r["_id"]),
+                    "title": r.get("title"),
+                    "ingredients": r.get("ingredients"),
+                    "instructions": r.get("instructions"),
+                    "time": r.get("time"),
+                    "created_at": r.get("created_at"),
+                    "dietaryPreference": diet_val,
+                    "spiceTolerance": spice_val,
+                })
+            return jsonify({"recipes": recipes}), 200
+
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            title = (data.get("title") or "").strip()
+            if not title:
+                return jsonify({"error": "Title is required"}), 400
+
+            ingredients = data.get("ingredients") or ""
+            instructions = data.get("instructions") or ""
+            time_val = data.get("time")
+            now = datetime.utcnow().isoformat()
+            time_int = int(time_val) if isinstance(time_val, (int, float)) else None
+
+            existing = mongo_db.saved_recipes.find_one({"user_id": user_id, "lower_title": title.lower()})
+            if existing:
+                mongo_db.saved_recipes.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {"ingredients": ingredients, "instructions": instructions, "time": time_int, "created_at": now}}
+                )
+                return jsonify({"id": str(existing["_id"]), "success": True, "duplicate": True}), 200
+
+            doc = {
+                "user_id": user_id,
+                "title": title,
+                "lower_title": title.lower(),
+                "ingredients": ingredients,
+                "instructions": instructions,
+                "time": time_int,
+                "created_at": now
+            }
+            mongo_db.saved_recipes.insert_one(doc)
+            return jsonify({"id": str(doc["_id"]), "success": True, "duplicate": False}), 201
+
+        recipe_id = request.args.get("id")
+        clear_all = request.args.get("clear") in ("1", "true", "yes")
+        if clear_all:
+            mongo_db.saved_recipes.delete_many({"user_id": user_id})
+        else:
+            if not recipe_id:
+                return jsonify({"error": "Recipe id is required"}), 400
+            mongo_db.saved_recipes.delete_one({"_id": ObjectId(recipe_id) if len(str(recipe_id)) == 24 else recipe_id, "user_id": user_id})
+        return jsonify({"success": True}), 200
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -734,11 +886,38 @@ def saved_recipes():
     return jsonify({"success": True}), 200
 
 
+
 @app.route('/user/search-history', methods=['GET', 'DELETE'])
 def get_search_history():
     user_id = get_auth_user_id()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
+
+    if mongo_db is not None:
+        if request.method == 'DELETE':
+            clear_all = request.args.get("clear") in ("1", "true", "yes")
+            history_id = request.args.get("id")
+            if clear_all:
+                mongo_db.search_history.delete_many({"user_id": user_id})
+                return jsonify({"success": True}), 200
+            if not history_id:
+                return jsonify({"error": "History id is required"}), 400
+            mongo_db.search_history.delete_one({"_id": ObjectId(history_id) if len(str(history_id)) == 24 else history_id, "user_id": user_id})
+            return jsonify({"success": True}), 200
+
+        cursor = mongo_db.search_history.find({"user_id": user_id}).sort("created_at", pymongo.DESCENDING).limit(120)
+        seen = set()
+        history = []
+        for r in cursor:
+            q = (r.get("query") or "").strip()
+            key = " ".join(q.split()).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            history.append({"id": str(r["_id"]), "query": q, "created_at": r.get("created_at")})
+            if len(history) >= 50:
+                break
+        return jsonify({"history": history}), 200
 
     conn = get_db_connection()
     cur = conn.cursor()
