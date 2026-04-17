@@ -1,11 +1,41 @@
-const API_BASE_URL = import.meta.env.MODE === 'production' 
-  ? 'https://pantry-match-api.vercel.app/' 
-  : 'http://127.0.0.1:5000';
+const FALLBACK_URLS = import.meta.env.MODE === 'production' 
+  ? ['https://pantry-match-api.vercel.app', 'https://pantrymatch2-0.onrender.com'] 
+  : ['http://127.0.0.1:5000'];
+
+const getBaseUrl = async () => {
+    let cached = sessionStorage.getItem('activeApiUrl');
+    if (cached) return cached;
+    for (const url of FALLBACK_URLS) {
+        try {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(url + '/', { signal: controller.signal });
+            clearTimeout(id);
+            if (res.ok) {
+                sessionStorage.setItem('activeApiUrl', url);
+                return url;
+            }
+        } catch (e) {
+            console.warn('Backend ' + url + ' unreachable');
+        }
+    }
+    sessionStorage.setItem('activeApiUrl', FALLBACK_URLS[0]);
+    return FALLBACK_URLS[0];
+};
+
+const apiFetch = async (endpoint, options) => {
+    const base = await getBaseUrl();
+    const cleanBase = base.replace(/\/$/, '');
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+    return fetch(cleanBase + cleanEndpoint, options);
+};
+
+
 
 export const api = {
   // --- Auth & User ---
   signup: async ({ name, email, password }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+    const response = await apiFetch(`/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password }),
@@ -18,7 +48,7 @@ export const api = {
   },
 
   login: async ({ email, password }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await apiFetch(`/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -31,7 +61,7 @@ export const api = {
   },
 
   getCurrentUser: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    const response = await apiFetch(`/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -44,7 +74,7 @@ export const api = {
   },
 
   updatePreferences: async (token, preferences) => {
-    const response = await fetch(`${API_BASE_URL}/user/preferences`, {
+    const response = await apiFetch(`/user/preferences`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +90,7 @@ export const api = {
   },
 
   getSavedRecipes: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/user/saved-recipes`, {
+    const response = await apiFetch(`/user/saved-recipes`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -73,7 +103,7 @@ export const api = {
   },
 
   saveRecipe: async (token, recipe) => {
-    const response = await fetch(`${API_BASE_URL}/user/saved-recipes`, {
+    const response = await apiFetch(`/user/saved-recipes`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,7 +136,7 @@ export const api = {
   },
 
   clearSavedRecipes: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/user/saved-recipes?clear=1`, {
+    const response = await apiFetch(`/user/saved-recipes?clear=1`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -120,7 +150,7 @@ export const api = {
   },
 
   getSearchHistory: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/user/search-history`, {
+    const response = await apiFetch(`/user/search-history`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -150,7 +180,7 @@ export const api = {
   },
 
   clearSearchHistory: async (token) => {
-    const response = await fetch(`${API_BASE_URL}/user/search-history?clear=1`, {
+    const response = await apiFetch(`/user/search-history?clear=1`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -225,7 +255,7 @@ export const api = {
 
   // Get adaptation advice for missing ingredient
   getAdaptation: async (instructions, missing, title) => {
-    const response = await fetch(`${API_BASE_URL}/adapt`, {
+    const response = await apiFetch(`/adapt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

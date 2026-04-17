@@ -56,7 +56,8 @@ CORS(
                 "http://localhost:5173",
                 "http://localhost:3000",
                 "https://pantry-match-delta.vercel.app",
-                "https://pantrymatch2-0.onrender.com"
+                "https://pantrymatch2-0.onrender.com",
+                "https://pantry-match-api.vercel.app"
             ]
         }
     }

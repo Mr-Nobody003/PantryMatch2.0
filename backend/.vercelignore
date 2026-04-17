@@ -8,7 +8,7 @@ venv/
 models/*.pt
 models/ingredients_resnet18.onnx
 data/users.db
-data/Train/
-data/val/
-data/Train
-data/val
+**/data/Train/**
+**/data/val/**
+**/Train/**
+**/val/**
