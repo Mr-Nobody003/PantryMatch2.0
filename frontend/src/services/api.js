@@ -195,8 +195,8 @@ export const api = {
 
   // Search recipes by ingredients
   searchRecipes: async (query, token) => {
-    const response = await fetch(
-      `${API_BASE_URL}/search?q=${encodeURIComponent(query)}`,
+    const response = await apiFetch(
+      `/search?q=${encodeURIComponent(query)}`,
       {
         headers: token
           ? {
@@ -214,8 +214,8 @@ export const api = {
     const formData = new FormData();
     formData.append('image', imageFile);
     
-    const response = await fetch(
-      `${API_BASE_URL}/classify-image?mode=cnn`,
+    const response = await apiFetch(
+      `/classify-image?mode=cnn`,
       {
         method: 'POST',
         body: formData,
@@ -237,8 +237,8 @@ export const api = {
       formData.append('images', file);
     });
     
-    const response = await fetch(
-      `${API_BASE_URL}/classify-image?mode=cnn`,
+    const response = await apiFetch(
+      `/classify-image?mode=cnn`,
       {
         method: 'POST',
         body: formData,
@@ -272,8 +272,8 @@ export const api = {
 
   // Get YouTube videos for recipe
   getVideos: async (recipeTitle) => {
-    const response = await fetch(
-      `${API_BASE_URL}/videos?recipe=${encodeURIComponent(recipeTitle)}`
+    const response = await apiFetch(
+      `/videos?recipe=${encodeURIComponent(recipeTitle)}`
     );
     
     if (!response.ok) return [];
