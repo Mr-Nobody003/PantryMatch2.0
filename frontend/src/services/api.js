@@ -1,5 +1,5 @@
 const API_BASE_URL = import.meta.env.MODE === 'production' 
-  ? 'https://pantrymatch2-0.onrender.com' 
+  ? 'https://pantry-match-api.vercel.app/' 
   : 'http://127.0.0.1:5000';
 
 export const api = {
