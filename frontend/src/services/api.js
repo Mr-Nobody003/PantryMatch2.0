@@ -1,5 +1,5 @@
 const FALLBACK_URLS = import.meta.env.MODE === 'production' 
-  ? ['https://pantry-match-api.vercel.app', 'https://pantrymatch2-0.onrender.com'] 
+  ? ['https://pantry-match-api.vercel.app'] 
   : ['http://127.0.0.1:5000'];
 
 const getBaseUrl = async () => {
