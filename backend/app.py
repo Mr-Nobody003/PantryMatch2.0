@@ -265,53 +265,62 @@ def home():
 # -- Load Recipes & TF-IDF Search Setup --
 RECIPE_DIET_MAP = {}
 RECIPE_SPICE_MAP = {}
+RECIPES_DATA = []
+combined_ingredients = []
+vectorizer = None
+tfidf_matrix = None
+_search_initialized = False
 
 def _normalize_title_for_lookup(title):
     return (str(title) or "").strip().lower()
 
-# Pure native Python lookup maps to prevent memory overhead of Pandas
-try:
-    with open("data/recipe_classifications.csv", encoding="utf-8") as f:
+def init_search_data():
+    global _search_initialized, vectorizer, tfidf_matrix, RECIPES_DATA, RECIPE_DIET_MAP, RECIPE_SPICE_MAP, combined_ingredients
+    if _search_initialized:
+        return
+
+    # Pure native Python lookup maps to prevent memory overhead of Pandas
+    try:
+        with open("data/recipe_classifications.csv", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                key = _normalize_title_for_lookup(row.get("TranslatedRecipeName", ""))
+                if key:
+                    RECIPE_DIET_MAP[key] = row.get("Dietary Preference")
+                    RECIPE_SPICE_MAP[key] = row.get("Spice Tolerance")
+    except FileNotFoundError:
+        print(
+            "Warning: data/recipe_classifications.csv not found. "
+            "Dietary preference and spice filters will be disabled and icons hidden."
+        )
+
+    with open("data/final_recipes.csv", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Keep only required fields in memory
             key = _normalize_title_for_lookup(row.get("TranslatedRecipeName", ""))
-            if key:
-                RECIPE_DIET_MAP[key] = row.get("Dietary Preference")
-                RECIPE_SPICE_MAP[key] = row.get("Spice Tolerance")
-except FileNotFoundError:
-    print(
-        "Warning: data/recipe_classifications.csv not found. "
-        "Dietary preference and spice filters will be disabled and icons hidden."
-    )
+            diet_val = RECIPE_DIET_MAP.get(key)
+            spice_val = RECIPE_SPICE_MAP.get(key)
 
-RECIPES_DATA = []
-combined_ingredients = []
+            RECIPES_DATA.append({
+                'TranslatedRecipeName': row.get("TranslatedRecipeName", ""),
+                'processed_ingredients': row.get("processed_ingredients", ""),
+                'TranslatedInstructions': row.get("TranslatedInstructions", ""),
+                'TotalTimeInMins': row.get("TotalTimeInMins") if row.get("TotalTimeInMins") else None,
+                'Dietary Preference': diet_val,
+                'Spice Tolerance': spice_val
+            })
+            
+            synonyms = row.get("ingredient_synonyms", "").replace(",", " ")
+            ingredients = row.get("processed_ingredients", "")
+            combined = str(ingredients) + " " + str(synonyms)
+            combined_ingredients.append(combined)
 
-with open("data/final_recipes.csv", encoding="utf-8") as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        # Keep only required fields in memory
-        key = _normalize_title_for_lookup(row.get("TranslatedRecipeName", ""))
-        diet_val = RECIPE_DIET_MAP.get(key)
-        spice_val = RECIPE_SPICE_MAP.get(key)
-
-        RECIPES_DATA.append({
-            'TranslatedRecipeName': row.get("TranslatedRecipeName", ""),
-            'processed_ingredients': row.get("processed_ingredients", ""),
-            'TranslatedInstructions': row.get("TranslatedInstructions", ""),
-            'TotalTimeInMins': row.get("TotalTimeInMins") if row.get("TotalTimeInMins") else None,
-            'Dietary Preference': diet_val,
-            'Spice Tolerance': spice_val
-        })
-        
-        synonyms = row.get("ingredient_synonyms", "").replace(",", " ")
-        ingredients = row.get("processed_ingredients", "")
-        combined = str(ingredients) + " " + str(synonyms)
-        combined_ingredients.append(combined)
-
-# Initialize Vectorizer securely on native string arrays (Saves >100MB of RAM)
-vectorizer = TfidfVectorizer(stop_words='english')
-tfidf_matrix = vectorizer.fit_transform(combined_ingredients)
+    # Initialize Vectorizer securely on native string arrays (Saves >100MB of RAM)
+    vectorizer = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = vectorizer.fit_transform(combined_ingredients)
+    
+    _search_initialized = True
 
 
 def _normalize_pref_value(value):
@@ -405,6 +414,7 @@ def _recipe_matches_flags(row, diet_flag, spice_flag):
 # -- 1. Recipe Search Endpoint --
 @app.route('/search', methods=['GET'])
 def search():
+    init_search_data()
     user_query = request.args.get('q', '')
     user_vec = vectorizer.transform([user_query])
     scores = cosine_similarity(user_vec, tfidf_matrix).flatten()
@@ -701,6 +711,7 @@ def saved_recipes():
 
     if mongo_db is not None:
         if request.method == 'GET':
+            init_search_data()
             cursor = mongo_db.saved_recipes.find({"user_id": user_id}).sort("created_at", pymongo.DESCENDING)
             seen_titles = set()
             recipes = []
@@ -769,6 +780,7 @@ def saved_recipes():
     cur = conn.cursor()
 
     if request.method == 'GET':
+        init_search_data()
         cur.execute(
             """
             SELECT id, title, ingredients, instructions, time, created_at
