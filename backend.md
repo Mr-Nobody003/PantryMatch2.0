@@ -20,6 +20,7 @@ The backend implements several crucial optimizations to stay under the 512MB RAM
 3. **Chunked Grid Cropping**: Uploaded high-res images are automatically compressed (thumbnailed) and sliced into overlapping grid crops before prediction, to keep memory peak usage under 300MB per concurrent request.
 4. **Native Caching over Pandas**: Memory-heavy libraries like Pandas were bypassed for native Python `csv` dictionary mapping to load search corpus strings into TF-IDF transformers securely.
 5. **Garbage Collection Hooks**: Forced HTTP endpoint-level `gc.collect()` usage intercepts memory balloons quickly for ML routes.
+6. **Vercel Cold Start Fallback**: High-performance dependency frameworks like `scikit-learn` and `pandas` were intentionally omitted from `requirements.txt`. Vercel enforces a 250MB limit on serverless functions before triggering 15-20 second "runtime dependency caching" delays on every single cold start. By replacing TF-IDF algorithms with a lightweight standalone Numpy implementation, Vercel native boot times decrease to under a second, while `app.py` flexibly allows local installations to keep the `sklearn` backends.
 
 ## Setup & Installation
 
@@ -36,7 +37,13 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 3. Environment Variables & API Keys
+### 3. Local High-Performance ML Libraries (Optional)
+During development, the backend will attempt to dynamically use high-performance C++ ML libraries if they are found in your environment. These are excluded from `requirements.txt` to prevent Vercel deployment limits. If you are developing locally, it is highly recommended to install them:
+```bash
+pip install scikit-learn pandas
+```
+
+### 4. Environment Variables & API Keys
 You can set standard environment variables via `.env` or create a `config.py` file in the backend directory.
 
 **Required Keys:**
@@ -103,3 +110,16 @@ All secure endpoints expect an `Authorization: Bearer <token>` header.
 ├── procfile                    # Gunicorn Render launch wrapper
 └── .python-version             # Strict Python targeting
 ```
+
+## Deployment
+
+### Deploying to Vercel
+The backend is highly optimized for Vercel's Serverless environment. Follow these steps:
+
+1. **Connect Repository:** Provide Vercel with access to the GitHub repo.
+2. **Setup Vercel Configuration:**
+    Ensure `vercel.json` exists in the `/backend` directory to map routing correctly to `@vercel/python`.
+3. **Environment Variabls:**
+    Import all API keys (`AUTH_SECRET_KEY`, `OPENROUTER_API_KEY`, etc.) directly into Vercel's Environment Variables dashboard. If using MongoDB instead of SQLite, include a valid `MONGO_URI`.
+4. **Deploy:** Vercel will install dependencies utilizing `requirements.txt`. Because heavy modules like `scikit-learn` and `pandas` were intentionally kept out, your bundle will easily adhere to the 250MB limit, eliminating forced runtime delays.
+5. **Update Frontend API File:** Ensure the frontend `apis.js` is updated to point your application requests to your new `pantry-match-api.vercel.app` endpoint!

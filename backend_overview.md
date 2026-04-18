@@ -51,3 +51,7 @@ A substantial amount of the backend is thoroughly engineered to remain well unde
 
 ### Tight CORS Governance
 - Defined carefully explicitly for trusted Vercel and Localhost frontends (`flask_cors`), neutralizing persistent missing credential header and preflight failure gateway loops. 
+
+### Vercel Serverless Optimization & Cold-Starts
+- **Problem**: Vercel forces a 250MB size limit for internal caching. PyTorch, Pandas, and Scikit-learn easily exceed 450MB, causing Vercel to default to "Runtime Dependency Installation" which triggers a 15-20 second cold start delay.
+- **Solution**: Heavy frameworks like `scikit-learn` and `pandas` were dynamically abstracted out of `requirements.txt`. A pure `numpy` standard `SimpleTfidfVectorizer` automatically functions as a fallback if `sklearn` drops or is uninstalled. This brings the bundle down to ~145MB safely. Local setups with heavy tools pip installed will natively utilize the underlying high-level C++ math capabilities gracefully.
