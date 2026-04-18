@@ -55,9 +55,7 @@ def load_model():
     if _RESNET_SESS is None:
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        # Force single thread for Render stability
-        sess_options.intra_op_num_threads = 1
-        sess_options.inter_op_num_threads = 1
+        # Thread limits removed for Vercel multi-core processing
         _RESNET_SESS = ort.InferenceSession(str(MODEL_PATH), sess_options=sess_options, providers=['CPUExecutionProvider'])
 
     return _RESNET_SESS, class_names, None
@@ -122,7 +120,7 @@ def predict_boxes_onnx(image_bytes: bytes, conf_thres=0.6) -> List[Tuple[int, in
 
     if _YOLO_SESS is None:
         sess_options = ort.SessionOptions()
-        sess_options.intra_op_num_threads = 1
+        # Thread limits removed for Vercel
         _YOLO_SESS = ort.InferenceSession(str(YOLO_PATH), sess_options=sess_options, providers=['CPUExecutionProvider'])
 
     img_raw = Image.open(io.BytesIO(image_bytes)).convert("RGB")

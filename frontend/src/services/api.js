@@ -31,6 +31,60 @@ const apiFetch = async (endpoint, options) => {
 };
 
 
+const compressImage = async (file) => {
+  if (!file || !file.type.startsWith('image/')) return file;
+  if (file.size < 1024 * 1024 * 1.5) return file; // Skip compression if under 1.5MB
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height *= MAX_WIDTH / width));
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width *= MAX_HEIGHT / height));
+            height = MAX_HEIGHT;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            } else {
+              resolve(file); // fallback
+            }
+          },
+          'image/jpeg',
+          0.7 // reduce quality to drop size remarkably
+        );
+      };
+      img.onerror = () => resolve(file); // fallback
+    };
+    reader.onerror = () => resolve(file); // fallback
+  });
+};
 
 export const api = {
   // --- Auth & User ---
@@ -211,8 +265,9 @@ export const api = {
 
   // Classify ingredients from a single combined image (CNN grid-crops + optional LLM)
   classifySingleImage: async (imageFile) => {
+    const compressedImage = await compressImage(imageFile);
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('image', compressedImage);
     
     const response = await apiFetch(
       `/classify-image?mode=cnn`,
@@ -233,9 +288,10 @@ export const api = {
   // Classify ingredients from multiple images (CNN + LLM)
   classifyMultiImages: async (imageFiles) => {
     const formData = new FormData();
-    imageFiles.forEach((file) => {
-      formData.append('images', file);
-    });
+    for (const file of imageFiles) {
+      const compressedImage = await compressImage(file);
+      formData.append('images', compressedImage);
+    }
     
     const response = await apiFetch(
       `/classify-image?mode=cnn`,
