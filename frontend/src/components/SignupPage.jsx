@@ -49,30 +49,37 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
         <Header />
 
         <div className="content-wrapper">
-          <div className="results-header" style={{ borderBottom: 'none', marginBottom: '24px' }}>
-            <h2 className="results-title">
-              <span className="results-label">Join</span>
-              <span className="results-count">Pantry Match</span>
+          <div className="results-header" style={{ borderBottom: 'none', marginBottom: '40px', display: 'flex', justifyContent: 'center' }}>
+            <h2 className="results-title" style={{ display: 'flex', flexDirection: 'column', gap: '0', alignItems: 'center', textAlign: 'center', margin: 0 }}>
+              <span className="results-label" style={{ fontSize: '1.3rem', color: '#8a7e71', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>Join</span>
+              <span className="results-count" style={{ fontSize: '3.6rem', fontWeight: 900, background: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-1.5px', wordSpacing: '0.05em', lineHeight: '1.1' }}>Pantry Match</span>
             </h2>
           </div>
 
-          <form onSubmit={handleSubmit} className="search-area">
-            <div className="search-box" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              <input
-                type="text"
-                className="search-field"
-                placeholder="Full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+          <form onSubmit={handleSubmit} className="search-area" style={{ maxWidth: '640px', width: '100%', margin: '0 auto' }}>
+            <div className="search-box" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '16px', padding: '36px', borderRadius: '24px', boxShadow: '0 16px 50px rgba(0,0,0,0.08)' }}>
+              
+              <div className="input-wrap">
+                <input
+                  type="text"
+                  className="search-field"
+                  placeholder="Full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={{ fontSize: '1.45rem', padding: '22px', background: '#fcfcfc', borderRadius: '14px', border: '1px solid #eee' }}
+                />
+              </div>
 
-              <input
-                type="email"
-                className="search-field"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <div className="input-wrap">
+                <input
+                  type="email"
+                  className="search-field"
+                  placeholder="Email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ fontSize: '1.45rem', padding: '22px', background: '#fcfcfc', borderRadius: '14px', border: '1px solid #eee' }}
+                />
+              </div>
 
               <div className="input-wrap">
                 <input
@@ -81,7 +88,7 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                   placeholder="Password (min 6 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={{ paddingRight: 56 }}
+                  style={{ fontSize: '1.45rem', padding: '22px 64px 22px 22px', background: '#fcfcfc', borderRadius: '14px', border: '1px solid #eee' }}
                 />
                 <button
                   type="button"
@@ -90,12 +97,12 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                   className="password-toggle-btn"
                 >
                   {showPassword ? (
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '24px', height: '24px' }}>
                       <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                       <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '24px', height: '24px' }}>
                       <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                       <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                       <line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
@@ -111,7 +118,7 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                   placeholder="Confirm password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  style={{ paddingRight: 56 }}
+                  style={{ fontSize: '1.45rem', padding: '22px 64px 22px 22px', background: '#fcfcfc', borderRadius: '14px', border: '1px solid #eee' }}
                 />
                 <button
                   type="button"
@@ -120,12 +127,12 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                   className="password-toggle-btn"
                 >
                   {showConfirmPassword ? (
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '24px', height: '24px' }}>
                       <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                       <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   ) : (
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '24px', height: '24px' }}>
                       <path d="M3 12C3 12 7 5 12 5C17 5 21 12 21 12C21 12 17 19 12 19C7 19 3 12 3 12Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                       <circle cx="12" cy="12" r="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
                       <line x1="3" y1="21" x2="21" y2="3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
@@ -134,13 +141,13 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
                 </button>
               </div>
 
-              <button type="submit" className="search-btn" disabled={submitting}>
-                {submitting ? <span className="btn-loader-small" /> : 'Create account'}
+              <button type="submit" className="search-btn" disabled={submitting} style={{ fontSize: '1.6rem', padding: '22px', marginTop: '16px', borderRadius: '16px', fontWeight: 800, letterSpacing: '0.5px' }}>
+                {submitting ? <span className="btn-loader-small" /> : 'Create Account'}
               </button>
             </div>
 
             {error && (
-              <div className="alert alert-error">
+              <div className="alert alert-error" style={{ fontSize: '1.1rem', padding: '16px', marginTop: '20px', borderRadius: '12px' }}>
                 <svg
                   className="alert-icon"
                   viewBox="0 0 24 24"
@@ -171,12 +178,13 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
             )}
           </form>
 
-          <div className="auth-footer">
+          <div className="auth-footer" style={{ fontSize: '1.2rem', marginTop: '28px', color: '#6b6457', fontWeight: '500' }}>
             Already have an account?{' '}
             <button
               type="button"
               onClick={onSwitchToLogin}
               className="link-btn"
+              style={{ fontSize: '1.2rem', marginLeft: '8px', fontWeight: '700' }}
             >
               Sign in
             </button>

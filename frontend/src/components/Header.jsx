@@ -32,15 +32,15 @@ function Header({ user, onNavigate, onLogout }) {
               style={{
                 textAlign: 'right',
                 color: '#fff',
-                fontSize: 18,
-                maxWidth: 260,
+                fontSize: 26,
+                maxWidth: 340,
                 whiteSpace: 'normal',
               }}
             >
-              <div style={{ fontWeight: 600, lineHeight: 1.3 }}>
+              <div style={{ fontWeight: 800, lineHeight: 1.3 }}>
                 Hi, {user.name}
               </div>
-              <div style={{ fontSize: 14, opacity: 0.9, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 18, opacity: 0.9, lineHeight: 1.4, fontWeight: 500 }}>
                 Ready to cook something new?
               </div>
             </div>
