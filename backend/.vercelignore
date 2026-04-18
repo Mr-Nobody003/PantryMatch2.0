@@ -12,3 +12,13 @@ data/users.db
 **/data/val/**
 **/Train/**
 **/val/**
+
+# Heavy unused files
+*.jpg
+*.png
+*.jpeg
+data/*.jpg
+data/*.png
+data/Cleaned_Indian_Food_Dataset.csv
+ml_train_*.py
+prepare_data.py
