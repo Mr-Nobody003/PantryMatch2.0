@@ -28,31 +28,31 @@ PantryMatch is an intelligent recipe discovery platform that helps you find the 
 
 ### 📸 Image-Based Ingredient Detection
 Two powerful options for detecting ingredients from images:
-1. **Separate Images Mode** (CNN + AI Vision + YOLO Cropping):
+1. **Separate Images Mode** (CNN + YOLO Cropping):
    - Upload multiple images, one per ingredient
    - **YOLO v8n object detection** automatically segments food items
    - ResNet18 model analyzes each detected crop
-   - AI vision API refines the results
-   - See CNN-only predictions with confidence scores
+   - Detailed processing to extract accurate ingredient predictions
+   - See CNN predictions with confidence scores
    - **Comprehensive cropping strategy**: Base Grid crops (2x2, 3x3) + Center crop + YOLO detection for extra precision
 
-2. **Combined Image Mode** (AI Vision + YOLO Cropping):
+2. **Combined Image Mode** (CNN + YOLO Cropping):
    - Upload a single image with all your ingredients
    - **Smart cropping mechanism** uses YOLO to detect food objects
    - Multiple crops analyzed per image (YOLO detections + overlapping grid crops)
-   - Direct AI analysis for ingredient extraction
+   - Uses the ResNet18 model across all crops to cleanly separate and extract ingredients
    - Clean ingredient list ready for recipe search
 
 ### 🤖 AI-Powered Features
-- **Combined Smart Cropping** - Generates standard grid crops (2x2, 3x3 grids with 8% overlap) as a baseline, and layers on YOLOv8n object detection to add highly-precise crops for specific food objects (confidence threshold 0.3). This ensures no obscure ingredients are missed while cleanly bounding known ones.
+- **Combined Smart Cropping** - Generates standard grid crops (2x2, 3x3 grids with 8% overlap) as a baseline, and layers on YOLOv8n object detection to add highly-precise crops for specific food objects (confidence threshold 0.6). This ensures no obscure ingredients are missed while cleanly bounding known ones.
 - **Multi-Crop Analysis** - Processes multiple crops per image: full image, YOLO-detected regions, overlapping grid segments, and center crops
-- **Confidence-Based Filtering** - Filters predictions with confidence threshold (0.35) to avoid false positives
+- **Confidence-Based Search & Prediction Rules** - Filters predictions with a strict confidence threshold (0.35). Explicitly filters out specific problematic predictions (e.g. "Sweetpotato") to reduce false-positive rates.
 - **Robust Detection System** - Combines custom-trained ResNet18 model with YOLO object detection for best accuracy
 
 ### 📊 Additional Features
 - **Dietary Classification** - Recipes categorized by dietary preference and spice tolerance
 - **🎥 Video Tutorials** - Access YouTube video tutorials for each recipe
-- **🎨 Beautiful UI** - Modern, food-themed design with warm colors and smooth animations
+- **🎨 Beautiful UI** - Modern, food-themed design with warm colors, smooth animations, and a recently refined visually-appealing Authentication workflow
 - **🏗️ Component-Based Architecture** - Modern React structure with reusable components and custom hooks
 
 ## 🛠️ Tech Stack
@@ -74,10 +74,10 @@ Two powerful options for detecting ingredients from images:
 - **Component Architecture** - Modular, maintainable code structure
 
 ### Machine Learning
-- **ResNet18** - Pre-trained CNN architecture fine-tuned on 51 ingredient classes
+- **ResNet18** - Pre-trained CNN architecture fine-tuned on 95 ingredient classes
 - **YOLOv8n (Nano)** - Lightweight YOLO model for real-time food object detection
 - **Transfer Learning** - Fine-tuning pre-trained ResNet18 for ingredient classification
-- **Custom Dataset** - 51 classes of fruits and vegetables (Train/val split)
+- **Custom Dataset** - 95 classes of fruits and vegetables
 
 ## � Dependencies
 
@@ -182,29 +182,24 @@ cd backend
 
 # Make sure you have the dataset structure:
 # backend/data/Train/ (with subdirectories for each ingredient class)
-# backend/data/val/ (with subdirectories for each ingredient class)
 
-# Train the model
-python ml_train_ingredients_model.py --epochs 15 --batch-size 32
+# Train the model using 5-fold cross validation
+python ml_train_ingredients_model_5fold_cv_enhanced.py --epochs 15 --batch-size 32
 
 # The trained model will be saved to:
-# backend/models/ingredients_resnet18.pt
+# backend/models/best_enhanced_5fold_model.pt
 ```
 
 **Note**: Training requires a dataset organized as:
 ```
 backend/data/
-├── Train/
-│   ├── Apple/
-│   │   ├── Apple_1.jpg
-│   │   ├── Apple_2.jpg
-│   │   └── ...
-│   ├── Banana/
-│   └── ... (other ingredient classes)
-└── val/
+└── Train/
     ├── Apple/
+    │   ├── Apple_1.jpg
+    │   ├── Apple_2.jpg
+    │   └── ...
     ├── Banana/
-    └── ... (validation images)
+    └── ... (other ingredient classes)
 ```
 
 The model will automatically detect the number of classes from the directory structure.
@@ -239,8 +234,8 @@ The Flask server will run on `http://127.0.0.1:5000`
 
 **First Run Notes:**
 - The database (`users.db`) will be created automatically in `backend/data/`
-- The ResNet18 model will be loaded from `backend/models/ingredients_resnet18.pt`
-- If the model doesn't exist, image classification will only use AI vision
+- The ResNet18 model will be loaded from `backend/models/best_enhanced_5fold_model.pt`
+- If the model doesn't exist, you must train it in order to use image classification
 
 ### Start Frontend Development Server
 
@@ -315,8 +310,8 @@ All user data is stored locally in SQLite:
 #### Without Authentication
 1. **Search Recipes**: Enter your ingredients (comma-separated) in the search box. The system automatically matches against ingredient synonyms for better results.
 2. **Image Detection** (Two Options):
-   - **Option 1 - Separate Images**: Upload multiple images, one per ingredient. The ResNet18 model analyzes each image, and AI vision refines the results. See "Detected by model" chips for CNN predictions.
-   - **Option 2 - Combined Image**: Upload a single image containing all ingredients. Uses AI vision directly for detection.
+   - **Option 1 - Separate Images**: Upload multiple images, one per ingredient. The ResNet18 model analyzes each image (with multi-crop processing). See "Detected by model" chips for CNN predictions.
+   - **Option 2 - Combined Image**: Upload a single image containing all ingredients. Uses CNN with YOLO multi-crop processing to comprehensively capture and classify ingredients.
 3. **View Results**: Browse matched recipes with match scores
 4. **View Recipe Details**: Click "View Recipe" to see full instructions
 5. **Get Substitutions**: Enter a missing ingredient to get AI-powered suggestions
@@ -465,7 +460,7 @@ Authorization: Bearer <token>
 Detect ingredients from uploaded image(s). Supports two modes with **YOLO-based smart cropping**.
 
 **Cropping Strategy:**
-- **YOLO Detection**: Uses YOLOv8n to automatically detect food objects in the image with a highly sensitive threshold (0.3)
+- **YOLO Detection**: Uses YOLOv8n to automatically detect food objects in the image with a stable threshold (0.6)
 - **Smart Crop Generation (Combined Strategy)**:
   1. Full image crop (always included)
   2. Overlapping grid crops (2x2 and 3x3 grids with 8% overlap) - protects against obscure ingredients that YOLO doesn't recognize
@@ -766,9 +761,11 @@ PantryMatch/
 ├── README.md                           # Project documentation
 ├── backend/                            # Flask backend server
 │   ├── app.py                          # Main Flask application with all API endpoints
-│   ├── ml_train_ingredients_model.py   # ResNet18 model training script
+│   ├── ml_train_ingredients_model_5fold_cv_enhanced.py   # ResNet18 model training script with 5-fold CV
 │   ├── ml_infer_ingredients.py         # Model loading and inference utilities
 │   ├── prepare_data.py                 # Data preprocessing utilities
+│   ├── generate_final_report.py        # Utility to generate classification reports
+│   ├── yolov8n.pt                      # YOLOv8 object detection model weights
 │   ├── config.py                       # API keys configuration (git-ignored)
 │   ├── config.example.py               # API keys template
 │   ├── __pycache__/                    # Python cache directory
@@ -777,22 +774,21 @@ PantryMatch/
 │   │   ├── final_recipes.csv                  # Processed recipe data with TF-IDF
 │   │   ├── recipe_classifications.csv         # Dietary/spice classifications
 │   │   ├── users.db                           # SQLite user database (auto-created)
-│   │   ├── Train/                             # Training images for ResNet18 (51 classes)
-│   │   │   ├── Apple/          # 51 ingredient class directories
-│   │   │   ├── Banana/         # Each contains training images
-│   │   │   ├── Cabbage/
-│   │   │   ├── Carrot/
-│   │   │   ├── Chicken/
-│   │   │   ├── Corn/
-│   │   │   ├── ... (other classes)
-│   │   │   └── Tomato/
-│   │   └── val/                          # Validation images for ResNet18
-│   │       ├── Apple/          # Same 51 ingredient classes
-│   │       ├── Banana/         # For validation during training
-│   │       └── ... (other classes)
+│   │   └── Train/                             # Training images for ResNet18 (95 classes)
+│   │       ├── Apple/          # 95 ingredient class directories
+│   │       ├── Banana/         # Each contains training images
+│   │       ├── Cabbage/
+│   │       ├── Carrot/
+│   │       ├── Chicken/
+│   │       ├── Corn/
+│   │       ├── ... (other classes)
+│   │       └── Tomato/
 │   └── models/
-│       ├── ingredients_resnet18.pt      # Trained ResNet18 model weights
-│       └── ingredients_classes.txt      # 51 ingredient class names (one per line)
+│       ├── best_enhanced_5fold_model.pt # Best trained ResNet18 model weights
+│       ├── enhanced_5fold_metrics.json  # Cross-validation performance metrics
+│       ├── enhanced_5fold_report.txt    # Summary training report
+│       ├── fold_*_ingredients_resnet18.pt # Individual fold model weights
+│       └── ingredients_classes.txt      # 95 ingredient class names (one per line)
 │
 ├── frontend/                            # React frontend application
 │   ├── eslint.config.js                 # ESLint configuration
@@ -819,8 +815,11 @@ PantryMatch/
 │   │   │   ├── RecipeList.jsx           # Recipe results container
 │   │   │   ├── RecipeCard.jsx           # Individual recipe card
 │   │   │   ├── Toast.jsx                # Toast notification component
-│   │   │   ├── ImageUpload/
-│   │   │   │   └── ImageUploadSection.jsx # Image upload container
+│   │   │   ├── ImageUploadSection.jsx   # Image upload container
+│   │   │   ├── ImageUpload/             # Image upload mode components
+│   │   │   │   ├── SingleImageUpload.jsx # Single combined image upload
+│   │   │   │   └── MultiImageUpload.jsx  # Multiple individual ingredient images
+│   │   │   ├── styles/                  # Component-specific styles
 │   │   │   └── RecipeModal/
 │   │   │       ├── RecipeModal.jsx      # Recipe detail modal
 │   │   │       ├── ModalHeader.jsx      # Modal header with title
@@ -845,7 +844,7 @@ PantryMatch/
 
 #### Backend Data Directory (`backend/data/`)
 - **CSV Files**: Recipe datasets with processed ingredients and synonyms
-- **Train/val folders**: 51 ingredient classes for model training
+- **Train folder**: 95 ingredient classes for model training
   - Each class folder contains JPEG images of that ingredient
   - Automatically organized for PyTorch's ImageFolder dataset loader
 - **users.db**: SQLite database created automatically on first run
@@ -853,11 +852,15 @@ PantryMatch/
   - Location: `backend/data/users.db`
 
 #### Backend Models Directory (`backend/models/`)
-- **ingredients_resnet18.pt**: PyTorch checkpoint file containing:
-  - Model state dictionary (trained weights)
-  - Class names list (51 ingredients)
+- **best_enhanced_5fold_model.pt**: PyTorch checkpoint file containing:
+  - Best model state dictionary from 5-fold cross-validation
+  - Class names list (95 ingredients)
   - All necessary info for inference
-- Size: ~50 MB (ResNet18 is relatively small)
+- Size: ~43 MB (ResNet18 weights)
+- **Other Files**:
+  - `enhanced_5fold_metrics.json`: Detailed accuracy metrics per fold
+  - `enhanced_5fold_report.txt`: Summary report of training performance
+  - `fold_X_ingredients...`: Individual weights per fold
 
 #### Frontend Components
 - **Page Components**: Full-page views (LoginPage, ProfilePage, etc.)
@@ -1147,27 +1150,30 @@ The frontend is built with React and Vite, using a modern component-based archit
 
 ### Training Process
 1. **Transfer Learning**: Uses pre-trained ResNet18 weights from ImageNet
-2. **Fine-tuning**: Replaces final fully-connected layer for 51-class classification
-3. **Training Loop**: 
+2. **Fine-tuning**: Replaces final fully-connected layer for 95-class classification
+3. **5-Fold Cross-Validation**: 
+   - Divides dataset into 5 separate folds
+   - Trains and validates the model 5 times (using a different fold for validation each time)
+   - Ensures robust performance evaluation across the entire dataset
+4. **Training Loop**: 
    - Forward pass through ResNet18
    - CrossEntropyLoss calculation
-   - Backward propagation
-   - Adam optimizer step
-4. **Validation**: Monitors validation accuracy after each epoch
-5. **Model Saving**: Saves best model based on validation accuracy
+   - Adam optimizer step with learning rate scheduling
+5. **Model Evaluation & Saving**: Maintains accuracy metrics per fold and saves the best overall performing model.
 
 ### Model Performance
-- The model is trained on a dataset of 51 ingredient classes
-- Validation accuracy is monitored during training
-- Best model checkpoint is saved based on validation performance
-- Model file: `backend/models/ingredients_resnet18.pt`
+- The model is trained on a dataset of 95 ingredient classes using 5-fold CV
+- Extensive metrics are tracked and logged per fold (`enhanced_5fold_metrics.json`)
+- Best model checkpoint is saved based on validation performance across all folds
+- Model file: `backend/models/best_enhanced_5fold_model.pt`
 
 ## 🔧 Development
 
 ### Backend Development
 - All API endpoints are in `backend/app.py`
-- Model training: `backend/ml_train_ingredients_model.py`
+- Model training: `backend/ml_train_ingredients_model_5fold_cv_enhanced.py`
 - Model inference: `backend/ml_infer_ingredients.py`
+- Metrics report generation: `backend/generate_final_report.py`
 
 ### Frontend Development
 - Main app: `frontend/src/App.jsx`
