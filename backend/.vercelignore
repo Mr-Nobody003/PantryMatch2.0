@@ -1,9 +1,9 @@
 .env
 .env.local
-.python-version
 __pycache__
 venv/
 .venv/
+api/
 *.pt
 models/*.pt
 models/ingredients_resnet18.onnx
@@ -12,6 +12,10 @@ data/users.db
 **/data/val/**
 **/Train/**
 **/val/**
+english_stop_words.txt
+procfile
+runtime.txt
+
 
 # Heavy unused files
 *.jpg
@@ -22,3 +26,6 @@ data/*.png
 data/Cleaned_Indian_Food_Dataset.csv
 ml_train_*.py
 prepare_data.py
+build_cache.py
+config.example.py
+convert_to_onnx.py

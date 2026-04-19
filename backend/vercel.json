@@ -6,7 +6,7 @@
       "use": "@vercel/python",
       "config": { 
         "maxLambdaSize": "500mb",
-        "excludeFiles": "{data/Cleaned_*,models/*.pt,models/ingredients_resnet18.onnx,*.jpg,*.png,*.jpeg,data/*.jpg}"
+        "excludeFiles": "{data/Cleaned_*,models/*.pt,models/ingredients_resnet18.onnx,*.jpg,*.png,*.jpeg,data/*.jpg,.venv/**, venv/**, env/**, __pycache__/**, .env/**,.git/**, .github/**, .gitignore, README.md, requirements.txt, vercel.json}"
       }
     }
   ],
