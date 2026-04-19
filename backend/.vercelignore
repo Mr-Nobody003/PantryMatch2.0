@@ -17,9 +17,6 @@ data/users.db
 english_stop_words.txt
 procfile
 runtime.txt
-
-
-# Heavy unused files
 *.jpg
 *.png
 *.jpeg
