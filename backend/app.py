@@ -114,7 +114,7 @@ def _generate_yolo_crops(image_bytes: bytes):
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         w, h = img.size
         
-        results = model(img, conf=0.6, verbose=False)
+        results = model(img, conf=0.35, verbose=False)
         
         # Start with all grid crops so we don't miss anything YOLO doesn't recognize
         crops = _generate_grid_crops(image_bytes)
@@ -920,7 +920,8 @@ def classify_image():
                         model, class_names, device, crop_bytes, top_k=10
                     )
                     all_preds.append({"filename": f"{f.filename}:{crop_name}", "predictions": preds})
-                    for p in preds:
+                    if preds:
+                        p = preds[0]
                         if p["prob"] >= threshold:
                             cnn_ingredients.append(p["name"])
 
