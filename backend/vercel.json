@@ -1,19 +1,14 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "app.py",
-      "use": "@vercel/python",
-      "config": { 
-        "maxLambdaSize": "500mb",
-        "excludeFiles": "{data/Cleaned_*,models/*.pt,models/ingredients_resnet18.onnx,*.jpg,*.png,*.jpeg,data/*.jpg,.venv/**, venv/**, env/**, __pycache__/**, .env/**,.git/**, .github/**, .gitignore, README.md, requirements.txt, vercel.json}"
-      }
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{data/Cleaned_*,models/*.pt,models/ingredients_resnet18.onnx,*.jpg,*.png,*.jpeg,data/*.jpg,.venv/**,venv/**,env/**,__pycache__/**,.env/**,.git/**,.github/**,.gitignore,README.md,requirements.txt,vercel.json}"
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "app.py"
+      "source": "/(.*)",
+      "destination": "app.py"
     }
   ]
 }

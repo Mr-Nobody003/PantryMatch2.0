@@ -5,6 +5,8 @@ venv/
 .venv/
 api/
 *.pt
+.git/
+.github/
 models/*.pt
 models/ingredients_resnet18.onnx
 data/users.db
