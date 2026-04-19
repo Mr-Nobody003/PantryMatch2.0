@@ -1,6 +1,6 @@
 # 🍳 PantryMatch
 
-> **Recipe Retrieval Using Image of Ingredients** - Find delicious recipes from your pantry ingredients using AI-powered matching and computer vision
+> **Recipe Retrieval Using Image of Ingredients** - Find delicious recipes from your pantry ingredients using our custom-trained ML model and computer vision
 
 PantryMatch is an intelligent recipe discovery platform that helps you find the perfect recipes based on ingredients you already have. It uses machine learning **(TF-IDF and cosine similarity)** to match your pantry items with recipes, **computer vision (ResNet18 CNN)** to detect ingredients from photos, **AI vision models** for enhanced detection, **synonym matching** for better recipe discovery, **user authentication** with preferences and saved recipes, and **AI to suggest ingredient substitutions** when you're missing something.
 
@@ -43,7 +43,7 @@ Two powerful options for detecting ingredients from images:
    - Uses the ResNet18 model across all crops to cleanly separate and extract ingredients
    - Clean ingredient list ready for recipe search
 
-### 🤖 AI-Powered Features
+### 🧠 ML-Powered Detection Features
 - **Combined Smart Cropping** - Generates standard grid crops (2x2, 3x3 grids with 8% overlap) as a baseline, and layers on YOLOv8n object detection to add highly-precise crops for specific food objects (confidence threshold 0.6). This ensures no obscure ingredients are missed while cleanly bounding known ones.
 - **Multi-Crop Analysis** - Processes multiple crops per image: full image, YOLO-detected regions, overlapping grid segments, and center crops
 - **Confidence-Based Search & Prediction Rules** - Filters predictions with a strict confidence threshold (0.35). Explicitly filters out specific problematic predictions (e.g. "Sweetpotato") to reduce false-positive rates.
