@@ -173,8 +173,8 @@ export const api = {
   },
 
   deleteSavedRecipe: async (token, id) => {
-    const response = await fetch(
-      `${API_BASE_URL}/user/saved-recipes?id=${encodeURIComponent(id)}`,
+    const response = await apiFetch(
+      `/user/saved-recipes?id=${encodeURIComponent(id)}`,
       {
         method: 'DELETE',
         headers: {
@@ -217,8 +217,8 @@ export const api = {
   },
 
   deleteSearchHistoryItem: async (token, id) => {
-    const response = await fetch(
-      `${API_BASE_URL}/user/search-history?id=${encodeURIComponent(id)}`,
+    const response = await apiFetch(
+      `/user/search-history?id=${encodeURIComponent(id)}`,
       {
         method: 'DELETE',
         headers: {
