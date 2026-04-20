@@ -1,0 +1,54 @@
+# Ignore frontend if deploying backend from root
+# Ignore documentation & config
+*.md
+.sixth/
+
+# Git and IDE
+.git/
+.github/
+.vscode/
+.idea/
+
+# Virtual Environments & Caches
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Local Data and Secrets
+.env
+.env.local
+*.db
+backend/data/*.db
+
+# Ignore training data and datasets (Saves Massive Upload Size)
+backend/data/Train/
+backend/data/val/
+backend/data/Cleaned_Indian_Food_Dataset.csv
+
+# PyTorch models and unneeded ONNX models
+*.pt
+*.pth
+backend/models/*.pt
+backend/models/*.pth
+backend/models/ingredients_resnet18.onnx
+backend/models/ingredients_classes.txt
+
+# Ignore raw uploaded/test images
+*.jpg
+*.jpeg
+*.png
+*.mp4
+backend/data/*.jpg
+backend/data/*.png
+
+# Ignore backend utility scripts that are for training/converting
+backend/ml_train_*.py
+backend/prepare_data.py
+backend/build_cache.py
+backend/convert_to_onnx.py
+backend/config.example.py
+backend/english_stop_words.txt
+backend/procfile
+backend/runtime.txt
