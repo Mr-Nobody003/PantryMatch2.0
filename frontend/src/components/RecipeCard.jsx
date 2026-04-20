@@ -1,6 +1,6 @@
 import React from 'react';
 
-function getDietInfo(dietaryPreference) {
+export function getDietInfo(dietaryPreference) {
   const raw = (dietaryPreference || '').toString().toLowerCase();
   if (!raw) return null;
   if (raw.includes('non')) {
@@ -12,8 +12,59 @@ function getDietInfo(dietaryPreference) {
   return null;
 }
 
-function RecipeCard({ recipe, index, onViewRecipe }) {
+export function getSpiceInfo(spiceTolerance) {
+  const raw = (spiceTolerance || '').toString().toLowerCase();
+  if (!raw) return null;
+  if (raw.includes('non') || raw.includes('mild')) return { type: 'nonspicy', label: 'Non-spicy' };
+  if (raw.includes('spicy')) return { type: 'spicy', label: 'Spicy' };
+  return null;
+}
+
+// Tokenise an ingredient string into a Set of lowercase words
+function tokenise(str) {
+  return new Set(
+    (str || '')
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 2)   // ignore tiny words like "of", "in"
+  );
+}
+
+// Split a comma/dot/newline separated ingredient string into individual items
+function splitIngredients(str) {
+  return (str || '')
+    .split(/,|\n|\./)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function getMissingIngredients(recipeIngredients, userIngredients) {
+  const userTokens = tokenise(userIngredients);
+  if (userTokens.size === 0) return [];
+
+  const recipeItems = splitIngredients(recipeIngredients);
+
+  return recipeItems.filter((item) => {
+    const itemTokens = tokenise(item);
+    // An item is "missing" if none of its meaningful words appear in the user's pantry
+    return ![...itemTokens].some((t) => userTokens.has(t));
+  });
+}
+
+function formatIngredients(str) {
+  if (!str) return '';
+  return str
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(', ');
+}
+
+function RecipeCard({ recipe, index, onViewRecipe, userIngredients }) {
   const dietInfo = getDietInfo(recipe.dietaryPreference);
+  const missingIngredients = getMissingIngredients(recipe.ingredients, userIngredients);
 
   return (
     <article
@@ -21,8 +72,8 @@ function RecipeCard({ recipe, index, onViewRecipe }) {
       style={{ '--delay': `${index * 50}ms` }}
     >
       <div className="tile-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-          <h3 className="tile-title">{recipe.title}</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minWidth: 0 }}>
+          <h3 className="tile-title" title={recipe.title}>{recipe.title}</h3>
           {dietInfo && (
             <div
               className={`diet-icon ${dietInfo.type === 'veg' ? 'diet-icon--veg' : 'diet-icon--nonveg'}`}
@@ -47,20 +98,31 @@ function RecipeCard({ recipe, index, onViewRecipe }) {
         )}
       </div>
       
-      <div className="tile-body">
-        <div className="tile-section">
-          <span className="section-label">Ingredients</span>
-          <p className="section-text">{recipe.ingredients}</p>
-        </div>
-        
-        <div className="tile-section">
-          <span className="section-label">Instructions</span>
-          <p className="section-text">
-            {recipe.instructions.slice(0, 120)}
-            {recipe.instructions.length > 120 ? '...' : ''}
-          </p>
-        </div>
+      <div className="tile-section ingredient-section">
+        <span className="section-label">Ingredients</span>
+        <p className="section-text">{formatIngredients(recipe.ingredients)}</p>
       </div>
+
+      {missingIngredients.length > 0 ? (
+        <div className="tile-section missing-section">
+          <span className="section-label missing-label">
+            ⚠ Missing ({missingIngredients.length})
+          </span>
+          <div className="missing-chips">
+            {missingIngredients.map((item) => (
+              <span key={item} className="missing-chip">
+                {item.charAt(0).toUpperCase() + item.slice(1)}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : userIngredients ? (
+        <div className="tile-section missing-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span className="missing-all-good">✓ You have all ingredients!</span>
+        </div>
+      ) : (
+        <div className="tile-section missing-section empty-placeholder" style={{ visibility: 'hidden', padding: 0, border: 'none', margin: 0, height: 0 }}></div>
+      )}
 
       <div className="tile-footer">
         {recipe.score && (

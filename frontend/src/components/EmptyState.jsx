@@ -1,5 +1,5 @@
 import React from 'react';
-import picImage from '../assets/pic.png';
+import picImage from '../assets/pic.webp';
 
 function EmptyState() {
   return (
