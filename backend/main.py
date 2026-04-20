@@ -5,13 +5,12 @@ import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import csv
-# Try to import optimized scikit-learn ML libraries, fallback to lightweight local versions for Vercel
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-except ImportError:
-    from simple_tfidf import SimpleTfidfVectorizer as TfidfVectorizer
-    from simple_tfidf import simple_cosine_similarity as cosine_similarity
+# Require optimized scikit-learn ML libraries
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+# Fallback to local versions is commented out:
+# from simple_tfidf import SimpleTfidfVectorizer as TfidfVectorizer
+# from simple_tfidf import simple_cosine_similarity as cosine_similarity
 import requests
 import json
 import base64

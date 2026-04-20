@@ -47,6 +47,7 @@ backend/data/*.png
 backend/ml_train_*.py
 backend/prepare_data.py
 backend/build_cache.py
+backend/simple_tfidf.py
 backend/convert_to_onnx.py
 backend/config.example.py
 backend/english_stop_words.txt
