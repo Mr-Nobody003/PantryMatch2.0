@@ -17,6 +17,9 @@ PantryMatch is an intelligent recipe discovery platform that helps you find the 
 - **Smart Recipe Search** - Enter your ingredients and get matched recipes using TF-IDF vectorization and cosine similarity
 - **Synonym Matching** - Advanced matching system that recognizes ingredient synonyms (e.g., "chili powder" matches "red chilli powder", "chilli powder")
 - **Match Score** - See how well each recipe matches your ingredients (0-100%)
+- **Missing Ingredients Tracker** - Each recipe card highlights exactly which ingredients you're missing, or lets you know if you have everything you need.
+- **Interactive Filtering & Sorting** - Dynamically filter results by max prep time, missing ingredients limit, or dietary preference. Sort recipes by Best Match, Prep Time, or Missing Items.
+- **Pagination** - Navigate through matched recipes effortlessly using a seamless "Show More" functionality
 - **Fast & Responsive** - Optimized search with pre-processed recipe data
 
 ### 👤 User Account Features
@@ -312,9 +315,10 @@ All user data is stored locally in SQLite:
 2. **Image Detection** (Two Options):
    - **Option 1 - Separate Images**: Upload multiple images, one per ingredient. The ResNet18 model analyzes each image (with multi-crop processing). See "Detected by model" chips for CNN predictions.
    - **Option 2 - Combined Image**: Upload a single image containing all ingredients. Uses CNN with YOLO multi-crop processing to comprehensively capture and classify ingredients.
-3. **View Results**: Browse matched recipes with match scores
-4. **View Recipe Details**: Click "View Recipe" to see full instructions
-5. **Get Substitutions**: Enter a missing ingredient to get AI-powered suggestions
+3. **View Results**: Browse matched recipes sorted by match score
+4. **Refine Search**: Use the interactive sliders to filter by maximum Preparation Time or Missing Items, and toggle Veg/Non-Veg dietary preferences. You can also re-sort results based on Preparation Time or Missing Items.
+5. **View Recipe Details**: Click "View Recipe" to see full instructions
+6. **Get Substitutions**: Enter a missing ingredient to get AI-powered suggestions
 6. **Watch Tutorials**: Access YouTube video tutorials for visual guidance
 
 #### With User Account
