@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import Header from './components/Header';
 import LoginPage from './components/LoginPage';
@@ -40,6 +40,8 @@ function App() {
   const [toast, setToast] = useState(null);
   const [savedCount, setSavedCount] = useState(0);
   const [savedTitleSet, setSavedTitleSet] = useState(() => new Set());
+  const [isClearing, setIsClearing] = useState(false);
+  const recipeListRef = useRef(null);
 
   const normalizeTitle = (t) => (t || '').trim().toLowerCase();
 
@@ -100,6 +102,11 @@ function App() {
         if (maxScore < 0.01) {
           setError('The query appears to be irrelevant or not found in the dataset. Please try different ingredients.');
           setResults([]);
+        } else {
+          // Valid results found, smoothly scroll down
+          setTimeout(() => {
+            recipeListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
         }
       }
     } catch (err) {
@@ -156,6 +163,18 @@ function App() {
         (errMsg) => setError(errMsg)
       );
     }
+  };
+
+  const handleClearAllState = () => {
+    setIsClearing(true);
+    setTimeout(() => {
+      clearAllImages();
+      clearDetections();
+      setIngredients('');
+      setResults([]);
+      setError('');
+      setIsClearing(false);
+    }, 350); // Matches the CSS transition duration
   };
 
   // Handle recipe modal
@@ -392,7 +411,7 @@ function App() {
       <div className="app-container">
         <Header user={authUser} onNavigate={setCurrentView} onLogout={handleLogout} />
 
-        <div className="content-wrapper">
+        <div className={`content-wrapper ${isClearing ? 'content-fade-out' : ''}`}>
           <SearchBox
             ingredients={ingredients}
             setIngredients={setIngredients}
@@ -411,13 +430,17 @@ function App() {
             onIngredientsChange={setIngredients}
             cnnDetected={cnnDetected}
             llmDetected={llmDetected}
+            onClearAll={handleClearAllState}
           />
 
-          <RecipeList
-            results={results}
-            loading={loading}
-            onViewRecipe={openRecipe}
-          />
+          <div ref={recipeListRef} style={{ scrollMarginTop: '20px' }}>
+            <RecipeList
+              results={results}
+              loading={loading}
+              onViewRecipe={openRecipe}
+              userIngredients={ingredients}
+            />
+          </div>
         </div>
       </div>
 

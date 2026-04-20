@@ -399,12 +399,13 @@ def search():
         except Exception as e:
             print("Failed to load user preferences:", str(e))
 
-    # Collect the top 6 recipes that both match the query and respect preferences
+    # Collect all recipes that hit the 20% threshold and respect preferences
     ranked_indices = scores.argsort()[::-1]
     selected_indices = []
     for idx in ranked_indices:
-        if len(selected_indices) >= 6:
-            break
+        if scores[idx] < 0.20:
+            break # Ranked descending, so the remaining will all fail
+
         row = df.iloc[idx]
         if _recipe_matches_flags(row, diet_flag, spice_flag):
             selected_indices.append(idx)
