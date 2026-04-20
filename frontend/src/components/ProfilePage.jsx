@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Header from './Header';
 import { api } from '../services/api';
+import { getDietInfo } from './RecipeCard';
 
 function ProfilePage({
   user,
@@ -16,6 +17,8 @@ function ProfilePage({
   const [preferences, setPreferences] = useState(user?.preferences || { diet: 'none' });
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsError, setPrefsError] = useState('');
+  const [isDietOpen, setIsDietOpen] = useState(false);
+  const [isSpiceOpen, setIsSpiceOpen] = useState(false);
 
   const [savedRecipes, setSavedRecipes] = useState([]);
   const [history, setHistory] = useState([]);
@@ -24,6 +27,17 @@ function ProfilePage({
   const [deletingId, setDeletingId] = useState(null);
   const [clearing, setClearing] = useState(false);
   const [animatingOutId, setAnimatingOutId] = useState(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.profile-dropdown-group')) {
+        setIsDietOpen(false);
+        setIsSpiceOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -213,32 +227,92 @@ function ProfilePage({
                 <label style={{ fontSize: 18, color: '#4a4539', fontWeight: 600 }}>
                   Dietary preference
                 </label>
-                <select
-                  value={preferences?.diet || 'none'}
-                  onChange={(e) => setPreferences({ ...(preferences || {}), diet: e.target.value })}
-                  className="adaptation-field"
-                  style={{ maxWidth: '100%' }}
+                <div 
+                  className={`profile-dropdown-group ${isDietOpen ? 'dropdown-active' : ''}`}
+                  onClick={() => setIsDietOpen(!isDietOpen)}
                 >
-                  <option value="none">No specific preference</option>
-                  <option value="vegetarian">Vegetarian</option>
-                  <option value="nonvegetarian">Non-Vegetarian</option>
-                </select>
+                  <div className="profile-dropdown-value">
+                    {preferences?.diet === 'vegetarian' ? 'Vegetarian' :
+                     preferences?.diet === 'nonvegetarian' ? 'Non-Vegetarian' :
+                     'No specific preference'}
+                  </div>
+                  <span className="profile-dropdown-chevron">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s ease', transform: isDietOpen ? 'rotate(180deg)' : 'none' }}>
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </span>
+                  {isDietOpen && (
+                    <div className="profile-dropdown-menu">
+                      {[
+                        { val: 'none', label: 'No specific preference' },
+                        { val: 'vegetarian', label: 'Vegetarian' },
+                        { val: 'nonvegetarian', label: 'Non-Vegetarian' }
+                      ].map(opt => (
+                        <div 
+                          key={opt.val}
+                          className={`profile-dropdown-option ${preferences?.diet === opt.val ? 'selected' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreferences({ ...(preferences || {}), diet: opt.val });
+                            setIsDietOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                          {preferences?.diet === opt.val && (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', right: '14px' }}>
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <label style={{ fontSize: 18, color: '#4a4539', fontWeight: 600, marginTop: 8 }}>
                   Spice tolerance
                 </label>
-                <select
-                  value={preferences?.spice || 'none'}
-                  onChange={(e) =>
-                    setPreferences({ ...(preferences || {}), spice: e.target.value })
-                  }
-                  className="adaptation-field"
-                  style={{ maxWidth: '100%' }}
+                <div 
+                  className={`profile-dropdown-group ${isSpiceOpen ? 'dropdown-active' : ''}`}
+                  onClick={() => setIsSpiceOpen(!isSpiceOpen)}
                 >
-                  <option value="none">No specific preference</option>
-                  <option value="spicy">Spicy</option>
-                  <option value="nonspicy">Non-Spicy</option>
-                </select>
+                  <div className="profile-dropdown-value">
+                    {preferences?.spice === 'spicy' ? 'Spicy' :
+                     preferences?.spice === 'nonspicy' ? 'Non-Spicy' :
+                     'No specific preference'}
+                  </div>
+                  <span className="profile-dropdown-chevron">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6b35" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.2s ease', transform: isSpiceOpen ? 'rotate(180deg)' : 'none' }}>
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </span>
+                  {isSpiceOpen && (
+                    <div className="profile-dropdown-menu">
+                      {[
+                        { val: 'none', label: 'No specific preference' },
+                        { val: 'spicy', label: 'Spicy' },
+                        { val: 'nonspicy', label: 'Non-Spicy' }
+                      ].map(opt => (
+                        <div 
+                          key={opt.val}
+                          className={`profile-dropdown-option ${preferences?.spice === opt.val ? 'selected' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreferences({ ...(preferences || {}), spice: opt.val });
+                            setIsSpiceOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                          {preferences?.spice === opt.val && (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', right: '14px' }}>
+                              <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <button
@@ -298,27 +372,40 @@ function ProfilePage({
                         to favorites&quot; to keep it here.
                       </p>
                     ) : (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {displaySaved.slice(0, 8).map((r) => (
+                      <ul className="profile-activity-list">
+                        {displaySaved.slice(0, 8).map((r) => {
+                          const dietInfo = getDietInfo(r.dietaryPreference || r.Dietary_Preference || r.diet);
+                          return (
                           <li
                             key={r.id}
                             className={`list-row ${animatingOutId === r.id ? 'is-removing' : ''}`}
                             style={{
-                              padding: '10px 10px',
-                              borderBottom: '1px solid #f0ede5',
+                              padding: '16px 20px',
+                              marginBottom: '12px',
+                              background: '#ffffff',
+                              border: '1px solid #ffebe0',
+                              borderRadius: '16px',
                               fontSize: 16,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               gap: 12,
+                              boxShadow: '0 4px 15px rgba(255, 107, 53, 0.04)',
+                              transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                             }}
                           >
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontWeight: 800, color: '#2c2416' }}>{r.title}</div>
-                              {r.time ? (
-                                <div style={{ color: '#6b6457', fontSize: 14 }}>{r.time} mins</div>
-                              ) : null}
-                              <div style={{ color: '#6b6457', fontSize: 13 }}>Saved recipe</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                <div style={{ fontWeight: 800, color: '#2c2416', fontSize: '18px' }}>{r.title}</div>
+                                {dietInfo && (
+                                  <div className={`diet-icon ${dietInfo.type === 'veg' ? 'diet-icon--veg' : 'diet-icon--nonveg'}`} title={dietInfo.label} style={{ transform: 'scale(0.85)', transformOrigin: 'left center', margin: 0 }}>
+                                    <div className="diet-icon-dot"></div>
+                                  </div>
+                                )}
+                              </div>
+                              <div style={{ color: '#6b6457', fontSize: 14 }}>
+                                {r.time ? `${r.time} mins • ` : ''}Saved recipe
+                              </div>
                             </div>
 
                             <div className="row-actions" style={{ minWidth: 150, justifyContent: 'flex-end' }}>
@@ -357,7 +444,8 @@ function ProfilePage({
                               </button>
                             </div>
                           </li>
-                        ))}
+                        );
+                        })}
                       </ul>
                     )}
                   </div>
@@ -381,20 +469,23 @@ function ProfilePage({
                         Your next search will appear here so you can quickly revisit it.
                       </p>
                     ) : (
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      <ul className="profile-activity-list">
                         {displayHistory.slice(0, 10).map((h) => (
                           <li
                             key={h.id}
                             className={`list-row ${animatingOutId === h.id ? 'is-removing' : ''}`}
                             style={{
-                              padding: '8px 10px',
-                              borderBottom: '1px dashed #f1e6d7',
+                              padding: '14px 20px',
+                              marginBottom: '10px',
+                              background: '#ffffff',
+                              border: '1px solid #ffebe0',
+                              borderRadius: '16px',
                               fontSize: 16,
-                              color: '#4a4539',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               gap: 12,
+                              boxShadow: '0 4px 15px rgba(255, 107, 53, 0.04)',
                             }}
                           >
                             <button

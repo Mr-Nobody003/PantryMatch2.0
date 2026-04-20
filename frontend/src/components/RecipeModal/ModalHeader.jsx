@@ -13,7 +13,7 @@ function getDietInfo(dietaryPreference) {
 }
 
 function ModalHeader({ recipe }) {
-  const dietInfo = getDietInfo(recipe.dietaryPreference);
+  const dietInfo = getDietInfo(recipe.dietaryPreference || recipe.Dietary_Preference || recipe.diet);
 
   return (
     <div className="modal-header-section">

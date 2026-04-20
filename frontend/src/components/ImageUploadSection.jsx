@@ -69,7 +69,7 @@ function ImageUploadSection({
 
       <div
         className="image-upload-section"
-        style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 12 }}
+        style={{ marginTop: 12, display: 'flex', justifyContent: 'center', gap: 12 }}
       >
         <button
           className="image-upload-button"
