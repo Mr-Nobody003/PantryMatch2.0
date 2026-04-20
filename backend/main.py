@@ -146,7 +146,7 @@ def _generate_yolo_crops(image_bytes: bytes):
     
     try:
         from ml_infer_ingredients import predict_boxes_onnx
-        boxes = predict_boxes_onnx(image_bytes)
+        boxes = predict_boxes_onnx(image_bytes, conf_thres=0.35)
         
         if boxes:
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -1145,7 +1145,8 @@ def classify_image():
                 
                 for crop_name, preds in zip(crop_names, batch_preds):
                     all_preds.append({"filename": f"{f.filename}:{crop_name}", "predictions": preds})
-                    for p in preds:
+                    if preds:
+                        p = preds[0]
                         if p["prob"] >= threshold:
                             cnn_ingredients.append(p["name"])
 
