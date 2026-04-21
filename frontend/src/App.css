@@ -1255,7 +1255,7 @@
 }
 
 .detected-summary {
-  margin-top: 0;
+  margin-top: 20px;
   padding: 28px;
   border-radius: 20px;
   border: 1px solid #ffebe0;

@@ -50,7 +50,7 @@ function SignupPage({ onSignup, onSwitchToLogin }) {
 
         <div className="content-wrapper">
           <div className="results-header" style={{ borderBottom: 'none', marginBottom: '40px', display: 'flex', justifyContent: 'center' }}>
-            <h2 className="results-title" style={{ display: 'flex', flexDirection: 'column', gap: '0', alignItems: 'center', textAlign: 'center', margin: 0 }}>
+            <h2 className="results-title" style={{ display: 'flex', flexDirection: 'column', gap: '0', alignItems: 'center', textAlign: 'center', margin: 0, border: 'none', background: 'transparent', padding: 0, boxShadow: 'none' }}>
               <span className="results-label" style={{ fontSize: '1.3rem', color: '#8a7e71', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>Join</span>
               <span className="results-count" style={{ fontSize: '3.6rem', fontWeight: 900, background: 'linear-gradient(135deg, #ff6b35 0%, #f7931e 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-1.5px', wordSpacing: '0.05em', lineHeight: '1.1' }}>Pantry Match</span>
             </h2>
