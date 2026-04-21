@@ -114,7 +114,7 @@ def _generate_yolo_crops(image_bytes: bytes):
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         w, h = img.size
         
-        results = model(img, conf=0.35, verbose=False)
+        results = model(img, conf=0.50, verbose=False)
         
         # Start with all grid crops so we don't miss anything YOLO doesn't recognize
         crops = _generate_grid_crops(image_bytes)
