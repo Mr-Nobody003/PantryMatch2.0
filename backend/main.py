@@ -1120,7 +1120,7 @@ def classify_image():
             if ING_MODEL is None:
                 return jsonify({"error": "Ingredient model not loaded"}), 500
 
-            threshold = 0.35  # lower threshold for crop-based detection
+            threshold = 0.5  # lower threshold for crop-based detection
 
             cnn_ingredients = []
 
