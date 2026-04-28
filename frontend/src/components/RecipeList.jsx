@@ -48,6 +48,14 @@ function RecipeList({ results, loading, onViewRecipe, userIngredients }) {
     setMaxMissingLimit(maxGlobalMissing);
   }, [maxGlobalTime, maxGlobalMissing]);
 
+  // Reset filters and sorting when results are cleared
+  useEffect(() => {
+    if (results.length === 0) {
+      setDietFilter('All');
+      setSortOrder('Best Match');
+    }
+  }, [results.length]);
+
   if (results.length === 0 && !loading) {
     return <EmptyState />;
   }
