@@ -16,7 +16,7 @@ const getBaseUrl = async () => {
                 return url;
             }
         } catch (e) {
-            console.warn('Backend ' + url + ' unreachable');
+            console.warn('Backend ' + url + ' unreachable , Error details:', e);
         }
     }
     sessionStorage.setItem('activeApiUrl', FALLBACK_URLS[0]);
