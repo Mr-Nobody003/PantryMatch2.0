@@ -187,7 +187,7 @@ cd backend
 # backend/data/Train/ (with subdirectories for each ingredient class)
 
 # Train the model using 5-fold cross validation
-python ml_train_ingredients_model_5fold_cv_enhanced.py --epochs 15 --batch-size 32
+python ml_train_ingredients_model_5fold_cv_enhanced.py --epochs 25 --batch-size 32
 
 # The trained model will be saved to:
 # backend/models/best_enhanced_5fold_model.pt
@@ -1142,7 +1142,7 @@ The frontend is built with React and Vite, using a modern component-based archit
 - **Architecture**: ResNet18
 - **Input Size**: 224x224 pixels
 - **Batch Size**: 32
-- **Epochs**: 15 (default, configurable)
+- **Epochs**: 25 (default, configurable)
 - **Optimizer**: Adam (lr=0.001)
 - **Scheduler**: ReduceLROnPlateau (reduces LR when validation loss plateaus)
 - **Loss Function**: CrossEntropyLoss
